@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "StockItem": {
+      "title": "StockItem",
+      "description": "Stock items stored in the clinical lab inventory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "sampleGroup": { "type": "string" },
+        "lot": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "receiveDate": { "type": "string" },
+        "initialQty": { "type": "number" },
+        "currentQty": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "pricePerUnit": { "type": "number" },
+        "paymentType": { "type": "string", "enum": ["cash", "credit"] },
+        "paymentDueDate": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["paid", "pending"] },
+        "thresholds": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "WithdrawalLog": {
+      "title": "WithdrawalLog",
+      "description": "Logs of items withdrawn from the stock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "itemId": { "type": "string" },
+        "itemName": { "type": "string" },
+        "lot": { "type": "string" },
+        "sampleGroup": { "type": "string" },
+        "withdrawQty": { "type": "number" },
+        "withdrawDate": { "type": "string" },
+        "remainingQtyBefore": { "type": "number" },
+        "remainingQtyAfter": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/stockItems/{id}": {
+      "schema": "StockItem",
+      "description": "Stock item documents"
+    },
+    "/logs/{id}": {
+      "schema": "WithdrawalLog",
+      "description": "Log documents of item withdrawals"
+    }
+  }
+}

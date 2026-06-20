@@ -1,0 +1,6 @@
+{
+  "name": "Clinical Stock Manager",
+  "description": "ระบบจัดการสต็อกน้ำยา เคมีภัณฑ์ อุปกรณ์และชุดตรวจสำหรับคลินิกเทคนิคการแพทย์ (Medical Technology Clinic Stock Tracker)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
