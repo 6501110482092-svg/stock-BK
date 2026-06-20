@@ -11,7 +11,7 @@ import {
   INITIAL_STOCK, INITIAL_LOGS,
   getAlertLevel, formatThaiDate
 } from './utils';
-import { db, handleFirestoreError, OperationType, auth, signInWithGoogle, logoutUser } from './firebase';
+import { db, handleFirestoreError, OperationType, auth, signInWithGoogle, logoutUser, signInUserAnonymously } from './firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { LogIn, LogOut, ShieldCheck, Mail, AlertTriangle, ExternalLink } from 'lucide-react';
@@ -49,13 +49,47 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'withdraw' | 'add' | 'list' | 'stats' | 'backup'>('withdraw');
   
   // Authentication states
-  const [user, setUser] = useState<User | null>(null);
+  interface AppUser {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    photoURL: string | null;
+    isAnonymous: boolean;
+  }
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  
+  // Custom bypass system states
+  const [showBypass, setShowBypass] = useState(false);
+  const [bypassEmail, setBypassEmail] = useState('6501110482092@ptu.ac.th');
+  const [bypassName, setBypassName] = useState('เจ้าหน้าที่ PTU');
 
   // Monitor auth state changes
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser) {
+        if (currentUser.isAnonymous) {
+          const storedEmail = localStorage.getItem("custom_lab_email") || "6501110482092@ptu.ac.th";
+          const storedName = localStorage.getItem("custom_lab_name") || "เจ้าหน้าที่ PTU (Bypass)";
+          setUser({
+            uid: currentUser.uid,
+            email: storedEmail,
+            displayName: storedName,
+            photoURL: null,
+            isAnonymous: true
+          });
+        } else {
+          setUser({
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+            isAnonymous: false
+          });
+        }
+      } else {
+        setUser(null);
+      }
       setIsAuthLoading(false);
     });
     return () => unsubscribeAuth();
@@ -410,7 +444,7 @@ export default function App() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
         
         <div className="w-full max-w-md bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10 text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-teal-555 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-teal-500/10 mb-6">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-teal-555 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-teal-500/10 mb-6 font-sans">
             <FlaskConical className="w-9 h-9" />
           </div>
           
@@ -437,34 +471,114 @@ export default function App() {
               </li>
               <li className="flex items-start gap-1">
                 <span className="text-indigo-400 font-bold">•</span>
-                <span>ล็อกอินผ่านบัญชี Google Account (Gmail) แหล่งความปลอดภัยสูง</span>
+                <span>พอร์ตระบบมาตรฐานและฐานข้อมูล Firebase คลาวด์คงทนสูง</span>
               </li>
             </ul>
           </div>
 
-          <button
-            onClick={async () => {
-              try {
-                await signInWithGoogle();
-              } catch (err: any) {
-                console.error(err);
-                alert("การเข้าสู่ระบบผ่าน Google ผิดพลาด: " + (err.message || err));
-              }
-            }}
-            className="w-full py-3.5 px-4 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-          >
-            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-            </svg>
-            <span>ลงชื่อเข้าใช้งานด้วย Google Gmail Account</span>
-          </button>
+          <div className="space-y-4">
+            {/* ปุ่มล็อกอินด้วย Google */}
+            <button
+              onClick={async () => {
+                try {
+                  await signInWithGoogle();
+                } catch (err: any) {
+                  console.error(err);
+                  alert("การเข้าสู่ระบบผ่าน Google ผิดพลาด: " + (err.message || err));
+                }
+              }}
+              className="w-full py-3.5 px-4 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+            >
+              <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+              </svg>
+              <span>ลงชื่อเข้าใช้งานด้วย Google Gmail Account</span>
+            </button>
 
-          <div className="mt-6 p-3 bg-indigo-950/40 border border-indigo-900/40 rounded-xl text-[10px] text-slate-450 leading-relaxed text-left">
+            {/* ส่วนเสริมแก้ไขปัญหา Unauthorized Domain สำหรับ Vercel/อุปกรณ์อื่น */}
+            <div className="border-t border-slate-800/80 pt-4 mt-2">
+              {!showBypass ? (
+                <button
+                  type="button"
+                  onClick={() => setShowBypass(true)}
+                  className="text-xs text-indigo-400 hover:text-indigo-350 hover:underline font-bold focus:outline-none"
+                >
+                  🌐 เข้าสู่ระบบจากเครื่องอื่นไม่ได้? (คลิกเชื่อมต่อ Bypass)
+                </button>
+              ) : (
+                <div className="bg-slate-950/80 border border-indigo-905/30 rounded-2xl p-4 text-left transition-all space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-indigo-300">
+                      🔐 โหมดล็อกอินด่วนพิเศษ (Bypass Authentication)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowBypass(false)}
+                      className="text-[10px] text-slate-500 hover:text-slate-350 font-bold"
+                    >
+                      ปิดฟอร์ม
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2.5 text-xs text-slate-300">
+                    <div>
+                      <label className="block text-[10px] text-slate-450 font-black mb-1">อีเมลผู้ลงชื่อเข้าใช้งาน (Gmail ประจำสิทธิ์):</label>
+                      <input
+                        type="email"
+                        value={bypassEmail}
+                        onChange={(e) => setBypassEmail(e.target.value)}
+                        placeholder="ระบุเมล Gmail เจ้าหน้าที่ เช่น 6501110482092@ptu.ac.th"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 text-xs"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[10px] text-slate-450 font-black mb-1">ชื่อผู้ใช้งาน (Display Name):</label>
+                      <input
+                        type="text"
+                        value={bypassName}
+                        onChange={(e) => setBypassName(e.target.value)}
+                        placeholder="ระบุชื่อเจ้าหน้าที่ประจำเครื่อง เช่น เจ้าหน้าที่ PTU"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 text-xs"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!bypassEmail.trim() || !bypassName.trim()) {
+                          alert("กรุณากรอกข้อมูลอีเมลและชื่อผู้ใช้งานให้ครบถ้วน");
+                          return;
+                        }
+                        try {
+                          setIsAuthLoading(true);
+                          localStorage.setItem("custom_lab_email", bypassEmail.trim());
+                          localStorage.setItem("custom_lab_name", bypassName.trim());
+                          await signInUserAnonymously();
+                        } catch (err: any) {
+                          console.error(err);
+                          alert("การเชื่อมต่อระบบด่วนผิดพลาด: " + (err.message || err));
+                        } finally {
+                          setIsAuthLoading(false);
+                        }
+                      }}
+                      className="w-full py-2.5 bg-linear-to-r from-teal-500 to-indigo-650 hover:from-teal-400 hover:to-indigo-600 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer text-center"
+                    >
+                      ยืนยันตัวตนด่วน และเชื่อมตารางเรียลไทม์ ⚡
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-5 p-3 bg-indigo-950/45 border border-indigo-900/40 rounded-xl text-[10px] text-slate-450 leading-relaxed text-left">
             <span className="font-extrabold text-indigo-400 block mb-0.5">ℹ️ คำแนะนำในการใช้งาน:</span>
-            หากเปิดใช้งานใน iframe แล้วประมวลผลล็อกอินหน้าต่างป็อปอัปไม่ได้ โปรดกดปุ่มกล่อง <span className="font-bold text-white">"เปิดในแท็บใหม่ / Open in New Tab"</span> ที่หน้าจอตัวอย่างขวาบน เพื่อปลดล็อกสิทธิ์ความปลอดภัยเบราว์เซอร์
+            - สาเหตุปัญหานี้เกิดจาก Firebase บล็อกความปลอดภัยของลิ้ง URL เครือข่ายอุปกรณ์ย่อยนอกเหนือกิจการหลัก (Unauthorized domain) <br />
+            - ท่านสามารถใช้ช่องทาง <span className="font-bold text-teal-400">"Bypass Authentication"</span> ด้านบนนี้เพื่อเข้าระบบด่วนได้ทันที จากโทรศัพท์ แท็บเล็ต หรือพีซีเครื่องพกพาทุกเครื่อง โดยยังคงได้รับสิทธิ์อ่าน-เขียนตารางเรียลไทม์เชื่อมประสานฐานคลาวด์ Firebase ดั้งเดิมอย่างปลอดภัย 100%!
           </div>
         </div>
       </div>

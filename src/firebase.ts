@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, getDocFromServer, doc } from "firebase/firestore";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD7LYNFGuyFUHL0J5StLLTq4hXnN8YokxA",
@@ -26,6 +26,16 @@ export const signInWithGoogle = async () => {
     return result.user;
   } catch (error) {
     console.error("Google Auth Error:", error);
+    throw error;
+  }
+};
+
+export const signInUserAnonymously = async () => {
+  try {
+    const result = await signInAnonymously(auth);
+    return result.user;
+  } catch (error) {
+    console.error("Anonymous Auth Error:", error);
     throw error;
   }
 };
