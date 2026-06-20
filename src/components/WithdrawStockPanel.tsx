@@ -30,7 +30,13 @@ export default function WithdrawStockPanel({
   
   // สเตตเบิกแบบล็อตตรงๆ
   const [withdrawalQtys, setWithdrawalQtys] = useState<{ [itemId: string]: string }>({});
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [recentWithdrawAlerts, setRecentWithdrawAlerts] = useState<{ [itemId: string]: string }>({});
 
   // สเตตเบิกอัจฉริยะ (Auto-FEFO Mode)
@@ -565,7 +571,7 @@ export default function WithdrawStockPanel({
                 </tr>
               </thead>
               <tbody className="text-xs divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {logs.slice().reverse().map((log) => {
+                {logs.map((log) => {
                   const isFefotag = log.id.startsWith('log_fefo_');
                   return (
                     <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/40">

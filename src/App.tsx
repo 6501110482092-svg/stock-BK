@@ -99,8 +99,26 @@ export default function App() {
       snapshot.forEach((docSnap) => {
         logItems.push({ id: docSnap.id, ...docSnap.data() } as WithdrawalLog);
       });
-      // Sort logs by id/timestamp descending
-      logItems.sort((a, b) => b.id.localeCompare(a.id));
+      // Sort logs robustly (by withdrawDate descending, then by ID timestamp/number descending)
+      logItems.sort((a, b) => {
+        const dateA = new Date(a.withdrawDate).getTime();
+        const dateB = new Date(b.withdrawDate).getTime();
+        const dateDiff = dateB - dateA;
+        if (dateDiff !== 0) return dateDiff;
+
+        const getTimestamp = (log: WithdrawalLog): number => {
+          const parts = log.id.split('_');
+          for (const s of parts) {
+            if (/^\d{10,13}$/.test(s)) {
+              return parseInt(s, 10);
+            }
+          }
+          const num = parseInt(log.id.replace(/\D/g, ''), 10);
+          return isNaN(num) ? 0 : num;
+        };
+
+        return getTimestamp(b) - getTimestamp(a);
+      });
       setLogs(logItems);
     }, (error) => {
       console.error("Firestore logs loading error:", error);
