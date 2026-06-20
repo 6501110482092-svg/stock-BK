@@ -11,7 +11,7 @@ import {
   INITIAL_STOCK, INITIAL_LOGS,
   getAlertLevel, formatThaiDate
 } from './utils';
-import { db } from './firebase';
+import { db, handleFirestoreError, OperationType } from './firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch, updateDoc } from 'firebase/firestore';
 
 import AddStockPanel from './components/AddStockPanel';
@@ -52,8 +52,8 @@ export default function App() {
 
     const unsubscribeStock = onSnapshot(collection(db, "stockItems"), async (snapshot) => {
       const items: StockItem[] = [];
-      snapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() } as StockItem);
+      snapshot.forEach((docSnap) => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as StockItem);
       });
 
       // Auto-populate when Firestore is initial and empty
@@ -61,6 +61,8 @@ export default function App() {
         isFirstStockFetch = false;
         if (snapshot.empty) {
           console.log("No data found in Firestore, seeding default clinical stock templates...");
+          setStockItems(INITIAL_STOCK);
+          setIsLoading(false);
           try {
             const batch = writeBatch(db);
             INITIAL_STOCK.forEach((item) => {
@@ -70,6 +72,7 @@ export default function App() {
               batch.set(doc(db, "logs", log.id), cleanData(log));
             });
             await batch.commit();
+            console.log("Database seeded successfully.");
           } catch (err) {
             console.error("Auto seeding failed:", err);
           }
@@ -84,16 +87,28 @@ export default function App() {
     }, (error) => {
       console.error("Firestore loading error:", error);
       setIsLoading(false);
+      try {
+        handleFirestoreError(error, OperationType.LIST, "stockItems");
+      } catch (err) {
+        // Suppress uncaught throws to keep the UI running
+      }
     });
 
     const unsubscribeLogs = onSnapshot(collection(db, "logs"), (snapshot) => {
       const logItems: WithdrawalLog[] = [];
-      snapshot.forEach((doc) => {
-        logItems.push({ id: doc.id, ...doc.data() } as WithdrawalLog);
+      snapshot.forEach((docSnap) => {
+        logItems.push({ id: docSnap.id, ...docSnap.data() } as WithdrawalLog);
       });
       // Sort logs by id/timestamp descending
       logItems.sort((a, b) => b.id.localeCompare(a.id));
       setLogs(logItems);
+    }, (error) => {
+      console.error("Firestore logs loading error:", error);
+      try {
+        handleFirestoreError(error, OperationType.LIST, "logs");
+      } catch (err) {
+        // Suppress
+      }
     });
 
     return () => {
