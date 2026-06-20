@@ -66,7 +66,23 @@ export default function App() {
 
   // Monitor auth state changes
   useEffect(() => {
+    // Check if there is a fully bypassed user stored in local storage
+    const storedBypass = localStorage.getItem("bypass_user");
+    if (storedBypass) {
+      try {
+        const parsed = JSON.parse(storedBypass);
+        setUser(parsed);
+        setIsAuthLoading(false);
+        return; // Skip Firebase auth monitoring since we are in bypass mode
+      } catch (e) {
+        localStorage.removeItem("bypass_user");
+      }
+    }
+
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      // If we got here and there is a bypass user, ignore
+      if (localStorage.getItem("bypass_user")) return;
+
       if (currentUser) {
         if (currentUser.isAnonymous) {
           const storedEmail = localStorage.getItem("custom_lab_email") || "6501110482092@ptu.ac.th";
@@ -548,16 +564,24 @@ export default function App() {
 
                     <button
                       type="button"
-                      onClick={async () => {
+                      onClick={() => {
                         if (!bypassEmail.trim() || !bypassName.trim()) {
                           alert("กรุณากรอกข้อมูลอีเมลและชื่อผู้ใช้งานให้ครบถ้วน");
                           return;
                         }
                         try {
                           setIsAuthLoading(true);
+                          const appUser: AppUser = {
+                            uid: "bypass_user_" + Date.now(),
+                            email: bypassEmail.trim(),
+                            displayName: bypassName.trim(),
+                            photoURL: null,
+                            isAnonymous: true
+                          };
                           localStorage.setItem("custom_lab_email", bypassEmail.trim());
                           localStorage.setItem("custom_lab_name", bypassName.trim());
-                          await signInUserAnonymously();
+                          localStorage.setItem("bypass_user", JSON.stringify(appUser));
+                          setUser(appUser);
                         } catch (err: any) {
                           console.error(err);
                           alert("การเชื่อมต่อระบบด่วนผิดพลาด: " + (err.message || err));
@@ -641,7 +665,15 @@ export default function App() {
                 </div>
                 <div className="w-px h-5 bg-slate-200 mx-1"></div>
                 <button
-                  onClick={() => logoutUser()}
+                  onClick={async () => {
+                    localStorage.removeItem("bypass_user");
+                    setUser(null);
+                    try {
+                      await logoutUser();
+                    } catch (err) {
+                      console.error("Logout error", err);
+                    }
+                  }}
                   className="p-1 hover:bg-slate-200 rounded-lg text-slate-500 hover:text-rose-600 transition-colors"
                   title="ออกจากระบบ"
                 >
