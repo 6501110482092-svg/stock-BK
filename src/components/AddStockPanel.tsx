@@ -16,7 +16,13 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
   const [customSampleGroup, setCustomSampleGroup] = useState('');
   const [lot, setLot] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
-  const [receiveDate, setReceiveDate] = useState(new Date().toISOString().split('T')[0]);
+  const [receiveDate, setReceiveDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [initialQty, setInitialQty] = useState<number | ''>('');
   const [totalPrice, setTotalPrice] = useState<number | ''>('');
   const [pricePerUnit, setPricePerUnit] = useState<number>(0);

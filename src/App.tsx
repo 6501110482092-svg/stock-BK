@@ -11,8 +11,10 @@ import {
   INITIAL_STOCK, INITIAL_LOGS,
   getAlertLevel, formatThaiDate
 } from './utils';
-import { db, handleFirestoreError, OperationType } from './firebase';
+import { db, handleFirestoreError, OperationType, auth, signInWithGoogle, logoutUser } from './firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch, updateDoc } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { LogIn, LogOut, ShieldCheck, Mail, AlertTriangle, ExternalLink } from 'lucide-react';
 
 import AddStockPanel from './components/AddStockPanel';
 import WithdrawStockPanel from './components/WithdrawStockPanel';
@@ -45,6 +47,19 @@ export default function App() {
   const [logs, setLogs] = useState<WithdrawalLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'withdraw' | 'add' | 'list' | 'stats' | 'backup'>('withdraw');
+  
+  // Authentication states
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  // Monitor auth state changes
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribeAuth();
+  }, []);
 
   // Real-time Cloud Sync Configuration
   useEffect(() => {
@@ -375,6 +390,87 @@ export default function App() {
     }).length;
   }, [stockItems]);
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center">
+          <div className="w-16 h-16 bg-teal-650 rounded-3xl flex items-center justify-center text-white shadow-xl animate-bounce mb-4">
+            <FlaskConical className="w-10 h-10" />
+          </div>
+          <p className="mt-4 text-xs font-bold text-slate-400 tracking-wider">กำลังตรวจสอบสิทธิ์ความปลอดภัยแล็บ...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 text-slate-100 flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-teal-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div className="w-full max-w-md bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10 text-center">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-teal-555 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-teal-500/10 mb-6">
+            <FlaskConical className="w-9 h-9" />
+          </div>
+          
+          <span className="text-[10px] font-black text-teal-400 tracking-widest bg-teal-950/80 border border-teal-900/60 px-3 py-1 rounded-full uppercase">
+            Laboratory Inventory System
+          </span>
+          
+          <h1 className="text-xl font-extrabold text-white mt-4 tracking-tight">
+            ระบบบริหารคลังชุดตรวจและน้ำยาเคมี
+          </h1>
+          <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+            ห้องปฏิบัติการเทคนิคการแพทย์ คลินิกแล็บความแม่นยำสูง
+          </p>
+          
+          <div className="my-6 p-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl text-left">
+            <h4 className="text-xs font-black text-indigo-400 mb-2 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-teal-300" />
+              ระบบเชื่อมต่อซิงค์คลาวด์แบบมาตรฐาน:
+            </h4>
+            <ul className="text-[11px] text-slate-400 space-y-1.5 leading-relaxed">
+              <li className="flex items-start gap-1">
+                <span className="text-teal-400 font-bold">•</span>
+                <span>เชื่อมข้อมูลสดเรียลไทม์ (Real-time Live Sync) อัปเดตพร้อมกันทุกเครื่อง</span>
+              </li>
+              <li className="flex items-start gap-1">
+                <span className="text-indigo-400 font-bold">•</span>
+                <span>ล็อกอินผ่านบัญชี Google Account (Gmail) แหล่งความปลอดภัยสูง</span>
+              </li>
+            </ul>
+          </div>
+
+          <button
+            onClick={async () => {
+              try {
+                await signInWithGoogle();
+              } catch (err: any) {
+                console.error(err);
+                alert("การเข้าสู่ระบบผ่าน Google ผิดพลาด: " + (err.message || err));
+              }
+            }}
+            className="w-full py-3.5 px-4 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+          >
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+            </svg>
+            <span>ลงชื่อเข้าใช้งานด้วย Google Gmail Account</span>
+          </button>
+
+          <div className="mt-6 p-3 bg-indigo-950/40 border border-indigo-900/40 rounded-xl text-[10px] text-slate-450 leading-relaxed text-left">
+            <span className="font-extrabold text-indigo-400 block mb-0.5">ℹ️ คำแนะนำในการใช้งาน:</span>
+            หากเปิดใช้งานใน iframe แล้วประมวลผลล็อกอินหน้าต่างป็อปอัปไม่ได้ โปรดกดปุ่มกล่อง <span className="font-bold text-white">"เปิดในแท็บใหม่ / Open in New Tab"</span> ที่หน้าจอตัวอย่างขวาบน เพื่อปลดล็อกสิทธิ์ความปลอดภัยเบราว์เซอร์
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
       
@@ -414,18 +510,41 @@ export default function App() {
               </div>
             </div>
 
-            {/* หมุดประมวลผลด่วนของแดชบอร์ด */}
-            <div className="flex flex-wrap gap-2 text-xs">
+            {/* ส่วนโปรไฟล์ บัญชีผู้ใช้งาน และประมวลความเสี่ยง */}
+            <div className="flex flex-wrap items-center gap-3 text-xs md:ml-auto">
+              {/* บล็อกผู้ใช้งาน Google */}
+              <div className="flex items-center gap-2.5 bg-slate-50 p-2 pr-3.5 rounded-2xl border border-slate-200">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || ""} referrerPolicy="no-referrer" className="w-7 h-7 rounded-full shadow-xs" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-black">
+                    {user.email?.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="text-[11px] leading-tight max-w-[130px]">
+                  <div className="font-extrabold text-slate-900 truncate">{user.displayName || "ผู้เชี่ยวชาญแล็บ"}</div>
+                  <div className="text-[9.5px] text-slate-500 truncate">{user.email}</div>
+                </div>
+                <div className="w-px h-5 bg-slate-200 mx-1"></div>
+                <button
+                  onClick={() => logoutUser()}
+                  className="p-1 hover:bg-slate-200 rounded-lg text-slate-500 hover:text-rose-600 transition-colors"
+                  title="ออกจากระบบ"
+                >
+                  <LogOut className="w-4.5 h-4.5" />
+                </button>
+              </div>
+
               {emptyItems.length > 0 && (
                 <div className="bg-rose-50 text-rose-700 px-3 py-1.5 rounded-xl border border-rose-100 flex items-center gap-1.5 font-semibold">
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                  สินค้าหมดเกลี้ยง!คลังค้างอยู่ {emptyItems.length} ตัวอย่าง
+                  หมดเกลี้ยง! {emptyItems.length} ตัว
                 </div>
               )}
               {criticalItems.length > 0 && (
                 <div className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5 font-semibold">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                  จุดวิกฤตความเสี่ยงสีแดง {criticalItems.length} รายการ
+                  วิกฤต {criticalItems.length} รายการ
                 </div>
               )}
               {overdueCreditsCount > 0 && (

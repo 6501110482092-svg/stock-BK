@@ -20,8 +20,8 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
   const [selectedGroup, setSelectedGroup] = useState<string>('');
 
   // ฟิลเตอร์สเตตสำหรับกราฟแท่งความต้องการใช้น้ำยารายปี
-  const [selectedChartTest, setSelectedChartTest] = useState<string>('');
-  const [selectedChartYear, setSelectedChartYear] = useState<number>(2026);
+  const [selectedChartTests, setSelectedChartTests] = useState<string[]>([]);
+  const [selectedChartYear, setSelectedChartYear] = useState<number>(() => new Date().getFullYear());
 
   // หาทุกรายการตรวจหลักที่มีสะสมเพื่อเป็นหัวข้อเลือกในกราฟ
   const allTestNames = useMemo(() => {
@@ -31,16 +31,16 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
   // ดึงปีที่เป็นไปได้ทั้งหมดจากสถิติหรือใช้ค่าดีฟอลต์ (ค.ศ. 2026 เป็นหลัก)
   const availableYears = useMemo(() => {
     const years = logs.map(log => new Date(log.withdrawDate).getFullYear());
-    years.push(2026);
+    years.push(new Date().getFullYear());
     return Array.from(new Set(years)).sort((a, b) => b - a);
   }, [logs]);
 
   // ตั้งค่าเริ่มต้นของชื่อยาเมื่อตรวจพบรายการตรวจ
   useEffect(() => {
-    if (!selectedChartTest && allTestNames.length > 0) {
-      setSelectedChartTest(allTestNames[0]);
+    if (selectedChartTests.length === 0 && allTestNames.length > 0) {
+      setSelectedChartTests(allTestNames);
     }
-  }, [allTestNames, selectedChartTest]);
+  }, [allTestNames]);
 
   // ดึงหมวดหมู่กลุ่มตัวอย่างทั้งหมด
   const sampleGroups = useMemo(() => {
@@ -50,8 +50,8 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
 
   // หาวันที่ย้อนหลังสำหรับฟิลเตอร์
   const filterDateThreshold = useMemo(() => {
-    // อิงตามเวลาจำลองในระบบ 2026-06-19
-    const baseDate = new Date('2026-06-19T07:46:13');
+    // อิงตามเวลาปัจจุบันจริงลื่นไหล
+    const baseDate = new Date();
     const targetDate = new Date(baseDate);
     
     if (period === '1m') targetDate.setDate(baseDate.getDate() - 30);
@@ -183,7 +183,7 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
 
   // คำนวณหาค่าเฉลี่ย 3 เดือน, 6 เดือน, และ 1 ปี (12 ด.) ของชื่อผลิตภัณฑ์เดียวกัน เพื่อเปรียบเทียบตามคำขอ
   const averagesByName = useMemo(() => {
-    const baseDate = new Date('2026-06-19T07:46:13');
+    const baseDate = new Date();
     const cut3m = new Date(baseDate); cut3m.setDate(baseDate.getDate() - 90);
     const cut6m = new Date(baseDate); cut6m.setDate(baseDate.getDate() - 180);
     const cut1y = new Date(baseDate); cut1y.setDate(baseDate.getDate() - 365);
@@ -255,12 +255,12 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
       count: 0
     }));
 
-    if (!selectedChartTest) return data;
+    if (selectedChartTests.length === 0) return data;
 
     logs.forEach(log => {
       const logDate = new Date(log.withdrawDate);
       const isSameYear = logDate.getFullYear() === selectedChartYear;
-      const isSameTest = log.itemName.trim().toLowerCase() === selectedChartTest.trim().toLowerCase();
+      const isSameTest = selectedChartTests.some(test => test.trim().toLowerCase() === log.itemName.trim().toLowerCase());
 
       if (isSameYear && isSameTest) {
         const monthNum = logDate.getMonth(); // 0-11
@@ -272,7 +272,7 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
     });
 
     return data;
-  }, [selectedChartTest, selectedChartYear, logs]);
+  }, [selectedChartTests, selectedChartYear, logs]);
 
   const maxMonthlyQty = useMemo(() => {
     const values = monthlyDataForChart.map(m => m.qty);
@@ -566,18 +566,7 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
             
             {/* ฟอร์มตัวเลือกดึงสถิติตลอดทั้งปี */}
             <div className="flex flex-wrap items-center gap-1.5 no-print">
-              <span className="text-xs text-slate-500 font-semibold">เลือกน้ำยา:</span>
-              <select
-                value={selectedChartTest}
-                onChange={(e) => setSelectedChartTest(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold focus:outline-none"
-              >
-                {allTestNames.map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-
-              <span className="text-xs text-slate-500 font-semibold ml-2">เลือกปี:</span>
+              <span className="text-xs text-slate-500 font-semibold">เลือกปี:</span>
               <select
                 value={selectedChartYear}
                 onChange={(e) => setSelectedChartYear(Number(e.target.value))}
@@ -590,12 +579,77 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
             </div>
           </div>
 
+          {/* ฟอร์มตัวเลือกแบบกำหนดเองพร้อมปุ่มเลือกทั้งหมด/ล้างออก */}
+          <div className="no-print mb-6 p-4 bg-slate-50 dark:bg-slate-950/45 border border-slate-100 dark:border-slate-800/80 rounded-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                🧪 เลือกรายการตรวจและอุปกรณ์เพื่อจัดทำสถิติรวมในชาร์ต/PDF (เลือกได้หลายตัวเลือกพร้อมกัน):
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedChartTests(allTestNames)}
+                  className="text-xs text-indigo-650 dark:text-indigo-400 hover:underline font-bold"
+                >
+                  เลือกทั้งหมด
+                </button>
+                <span className="text-slate-300 dark:text-slate-700 text-xs">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedChartTests([])}
+                  className="text-xs text-slate-500 hover:underline font-bold"
+                >
+                  ล้างข้อมูล
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              {allTestNames.map((name) => {
+                const isChecked = selectedChartTests.includes(name);
+                return (
+                  <label
+                    key={name}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer select-none transition-all ${
+                      isChecked
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/20 dark:border-indigo-805 dark:text-indigo-400 font-bold'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedChartTests(prev => [...prev, name]);
+                        } else {
+                          setSelectedChartTests(prev => prev.filter(t => t !== name));
+                        }
+                      }}
+                      className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>{name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           {/* ป้ายแสดงรายละเอียดกรณีเข้าสู่ Print Layout */}
           <div className="hidden print:block mb-4 p-4.5 bg-slate-100 border-l-4 border-indigo-600 rounded-xl text-xs text-slate-900 leading-relaxed">
             <h4 className="font-extrabold uppercase text-[13px] text-slate-900 mb-1">ข้อมูลสารสนเทศรายงานเบิกจำแนกรายชื่อตรวจ</h4>
-            <div>• ชื่อรายการตรวจทดสอบ: <span className="font-black text-indigo-700">{selectedChartTest || 'ยังไม่ได้ระบุน้ำยา'}</span></div>
+            <div>• ชื่อรายการตรวจทดสอบ ({selectedChartTests.length}รายการ): <span className="font-bold text-indigo-700">{selectedChartTests.length > 0 ? selectedChartTests.join(', ') : 'ยังไม่ได้เลือก'}</span></div>
             <div>• สรุปสถิติรอบประจำปี ค.ศ.: <span className="font-bold underline text-indigo-600">{selectedChartYear}</span></div>
-            <div>• จัดพิมพ์โดย: <span className="font-semibold text-slate-700">6501110482092@ptu.ac.th</span> เมื่อ <span className="font-mono text-slate-700">2026-06-19 08:24:25 UTC</span></div>
+            <div>• จัดพิมพ์โดย: <span className="font-semibold text-slate-700">6501110482092@ptu.ac.th</span> เมื่อ <span className="font-mono text-slate-700">{(() => {
+              const d = new Date();
+              const yr = d.getFullYear() + 543; // พ.ศ. 
+              const moMonth = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+              const mo = moMonth[d.getMonth()];
+              const dy = d.getDate();
+              const hr = String(d.getHours()).padStart(2, '0');
+              const mi = String(d.getMinutes()).padStart(2, '0');
+              return `${dy} ${mo} ${yr} ${hr}:${mi} น.`;
+            })()} (เวลาไทย)</span></div>
           </div>
 
           {/* การเรนเดอร์ชาร์ตแท่งด้วยโค้ด React & Tailwind ความแม่นยำสูง */}
@@ -660,6 +714,175 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
             </div>
           )}
         </div>
+
+        {/* ส่วนแบ่งแยกสถิติตามหัวข้อตรวจเดี่ยวๆ (แยกรายชาร์ต & แยกรายตารางของน้ำยารายการนั้นๆ) */}
+        {selectedChartTests.length > 0 && (
+          <div className="space-y-6 lg:col-span-12">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm print-card">
+              <h3 className="font-extrabold text-slate-850 dark:text-slate-100 text-lg flex items-center gap-2">
+                <span className="p-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-650 dark:text-indigo-400 rounded-lg">🧪</span>
+                แยกรายงานสถิติและตารางข้อมูลเฉพาะเจาะจง ({selectedChartTests.length} รายการที่เลือก)
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                ระบบแยกตารางสถิติตัวเลขรายเดือน และเพิ่มตารางกราฟแยกอิสระเพื่อความสะดวกในการส่งออก PDF ของรายการที่คุณเลือก
+              </p>
+            </div>
+
+            {selectedChartTests.map((testName) => {
+              // คำนวณข้อมูสถิติเฉพาะรายการนี้
+              const monthsList = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+              const fullMonthsList = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+              const testData = Array.from({ length: 12 }, (_, i) => ({
+                monthIndex: i,
+                monthName: monthsList[i],
+                fullName: fullMonthsList[i],
+                qty: 0,
+                count: 0
+              }));
+
+              logs.forEach(log => {
+                const logDate = new Date(log.withdrawDate);
+                const isSameYear = logDate.getFullYear() === selectedChartYear;
+                const isSameTest = log.itemName.trim().toLowerCase() === testName.trim().toLowerCase();
+                
+                if (isSameYear && isSameTest) {
+                  const monthNum = logDate.getMonth();
+                  if (monthNum >= 0 && monthNum <= 11) {
+                    testData[monthNum].qty += log.withdrawQty;
+                    testData[monthNum].count += 1;
+                  }
+                }
+              });
+
+              const maxTestQty = Math.max(...testData.map(m => m.qty));
+              const finalMaxTestQty = maxTestQty === 0 ? 10 : maxTestQty;
+              const totalTestYearlyQty = testData.reduce((sum, m) => sum + m.qty, 0);
+              const totalTestYearlyCount = testData.reduce((sum, m) => sum + m.count, 0);
+
+              return (
+                <div key={testName} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm print-card">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 mb-4 border-b border-slate-150 dark:border-slate-800/80">
+                    <div>
+                      <span className="text-[10px] font-black tracking-wider uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-0.5 rounded-full border border-indigo-100 dark:border-indigo-900/60 inline-block mb-1">
+                        Test-Specific Analytics Report
+                      </span>
+                      <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-base flex items-center gap-1.5">
+                        🧪 รายการตรวจ: <span className="text-indigo-650 dark:text-teal-400 font-extrabold underline decoration-indigo-400">{testName}</span>
+                      </h4>
+                    </div>
+                    <div className="text-right text-xs text-slate-500 font-bold mt-1 md:mt-0">
+                      ปีงบประมาณ: <span className="text-slate-850 dark:text-slate-200">ค.ศ. {selectedChartYear}</span>
+                    </div>
+                  </div>
+
+                  {/* ตาราง และ กราฟ แสดงแยก */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* แท่งกราฟ ย่อย */}
+                    <div className="lg:col-span-12 xl:col-span-7 bg-slate-50 dark:bg-slate-950/40 p-5 rounded-xl border border-slate-150/80 dark:border-slate-850">
+                      <div className="text-xs font-black text-slate-700 dark:text-slate-350 mb-3 flex items-center gap-1">
+                        📊 กราฟแท่งแสดงอัตราเบิกรายเดือน: {testName} ({totalTestYearlyQty} ชุด ในปีนี้)
+                      </div>
+
+                      <div className="relative pt-6 pb-2 px-1">
+                        {/* เส้นพิกัดแรเงาแผลประมวลผลด่วน */}
+                        <div className="absolute inset-x-0 top-0 h-32 border-b border-dashed border-slate-200/80 dark:border-slate-800/60 pointer-events-none flex flex-col justify-between text-[9px] text-slate-450 dark:text-slate-550 font-mono">
+                          <div>{finalMaxTestQty.toFixed(0)} ชุด</div>
+                          <div className="border-t border-dashed border-slate-100 dark:border-slate-800/40 w-full"></div>
+                          <div>{(finalMaxTestQty / 2).toFixed(0)} ชุด</div>
+                          <div className="border-t border-dashed border-slate-100 dark:border-slate-800/40 w-full"></div>
+                          <div>0 ชุด</div>
+                        </div>
+
+                        {/* ลำแท่งกราฟ */}
+                        <div className="h-32 flex items-end justify-between gap-1.5 sm:gap-2 relative pt-2 z-10">
+                          {testData.map((d) => {
+                            const heightPercent = d.qty > 0 ? `${(d.qty / finalMaxTestQty) * 100}%` : '4px';
+                            return (
+                              <div key={d.monthIndex} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full mb-1 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950 px-2 py-1 text-[9px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap">
+                                  เบิก {d.qty} ชุด | {d.count} ครั้ง
+                                </div>
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: heightPercent }}
+                                  transition={{ duration: 0.35 }}
+                                  className={`w-full rounded-t-sm relative transition-all ${
+                                    d.qty > 0
+                                      ? 'bg-linear-to-t from-teal-500 to-indigo-600 group-hover:from-teal-400 group-hover:to-indigo-505 drop-shadow-xs'
+                                      : 'bg-slate-200/60 dark:bg-slate-850'
+                                  }`}
+                                >
+                                  {d.qty > 0 && (
+                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 text-[9px] font-bold font-mono text-indigo-600 dark:text-teal-400">
+                                      {d.qty}
+                                    </span>
+                                  )}
+                                </motion.div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* ชื่อเดือนแกน X ย่อย */}
+                        <div className="flex justify-between gap-1 mt-2.5 border-t border-slate-200 dark:border-slate-800 pt-2 text-[9px] sm:text-[10px] font-bold text-slate-500">
+                          {testData.map((d) => (
+                            <div key={d.monthIndex} className="flex-1 text-center truncate" title={d.fullName}>
+                              {d.monthName}
+                            </div>
+                          ))}
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* ตารางสถิติแยกจำแนกรายเดือน สำหรับรายการทดสอบนี้ */}
+                    <div className="lg:col-span-12 xl:col-span-5">
+                      <div className="overflow-hidden rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-950/40">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-450 font-bold border-b border-slate-150 dark:border-slate-800">
+                              <th className="px-3 py-2.5">เดือน (ค.ศ. {selectedChartYear})</th>
+                              <th className="px-3 py-2.5 text-right">จำนวนเบิกใช้</th>
+                              <th className="px-3 py-2.5 text-right">ความถี่เบิก</th>
+                              <th className="px-3 py-2.5 text-right">ประเมินสัดส่วน</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-705 dark:text-slate-300">
+                            {testData.map((d) => {
+                              const percentage = totalTestYearlyQty > 0 ? ((d.qty / totalTestYearlyQty) * 100).toFixed(1) : '0.0';
+                              return (
+                                <tr key={d.monthIndex} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/20">
+                                  <td className="px-3 py-2.5 font-bold text-slate-800 dark:text-slate-200">{d.fullName}</td>
+                                  <td className={`px-3 py-2.5 text-right font-black ${d.qty > 0 ? 'text-indigo-650 dark:text-teal-400 font-extrabold' : 'text-slate-400'}`}>
+                                    {d.qty} ชุด
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right font-mono text-slate-500">{d.count} ครั้ง</td>
+                                  <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-600 dark:text-slate-400">
+                                    {percentage}%
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            
+                            {/* แถวสรุปรวมท้ายตาราง */}
+                            <tr className="bg-slate-50/80 dark:bg-slate-850/40 font-black border-t border-slate-200 dark:border-slate-800">
+                              <td className="px-3 py-3 text-slate-900 dark:text-slate-100 font-extrabold">รวมยอดสะสมทั้งปี</td>
+                              <td className="px-3 py-3 text-right text-indigo-700 dark:text-teal-400 font-extrabold">{totalTestYearlyQty} ชุด</td>
+                              <td className="px-3 py-3 text-right text-slate-600 dark:text-slate-450">{totalTestYearlyCount} ครั้ง</td>
+                              <td className="px-3 py-3 text-right text-indigo-600 dark:text-teal-450 font-bold">100.0%</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ตารางสต็อกวิเคราะห์ความเสี่ยงขาดสต็อก (Inventory Projections & Restock Planning) */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm lg:col-span-12 print-card">

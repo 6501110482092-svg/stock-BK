@@ -27,7 +27,10 @@ export default function BackupExportPanel({ stockItems, logs, onImportBackup, on
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href",     dataStr);
     
-    const formattedDate = new Date().toISOString().split('T')[0];
+    const formattedDate = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
     downloadAnchor.setAttribute("download", `clinical_stock_backup_${formattedDate}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();

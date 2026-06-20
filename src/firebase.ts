@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, getDocFromServer, doc } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD7LYNFGuyFUHL0J5StLLTq4hXnN8YokxA",
@@ -17,6 +17,22 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firestore with the specific database ID
 export const db = getFirestore(app, "ai-studio-85b250a7-ba04-4977-a7e9-eba5a67d0cdb");
 export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export const signInWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch (error) {
+    console.error("Google Auth Error:", error);
+    throw error;
+  }
+};
+
+export const logoutUser = async () => {
+  return signOut(auth);
+};
 
 export enum OperationType {
   CREATE = 'create',
