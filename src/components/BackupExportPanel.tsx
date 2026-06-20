@@ -99,7 +99,7 @@ export default function BackupExportPanel({ stockItems, logs, onImportBackup, on
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
         
         {/* ส่งออก */}
         <div className="bg-slate-50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
@@ -145,31 +145,6 @@ export default function BackupExportPanel({ stockItems, logs, onImportBackup, on
           >
             <Upload className="w-3.5 h-3.5" />
             เลือกอัปโหลดสำรอง
-          </button>
-        </div>
-
-        {/* รีเซ็ตล้าง/ข้อมูลสมมติ */}
-        <div className="bg-slate-50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
-          <div>
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
-              <RefreshCcw className="w-4 h-4 text-amber-500" />
-              ล้างสต็อก & รีโหลดตัวอย่าง
-            </h4>
-            <p className="text-[11px] text-slate-400">
-              ล้างข้อมูลในระบบออกทั้งหมด และโหลดเซ็ตตัวอย่างน้ำยา (Mock Reagents) เข้าไปเพื่อทดลองกดหรือทดสอบระบบเบิกจ่าย
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              if (confirm('คุณต้องการรีเซ็ตคลังน้ำยาและนำเข้าชุดตัวอย่าง Mock Reagents หรือไม่? ข้อมูลเดิมของคุณที่มีในเซสชันปัจจุบันจะถูกแทนที่ทั้งหมด!')) {
-                onResetMocks();
-                showToast('🧪 ล้างคลังและป้อนสินค้าตัวอย่างกลับคืนสำเร็จ!');
-              }
-            }}
-            className="mt-3 w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all select-none cursor-pointer"
-          >
-            <RefreshCcw className="w-3.5 h-3.5" />
-            แทนที่ด้วยข้อมูลทดลองน้ำยา
           </button>
         </div>
 
