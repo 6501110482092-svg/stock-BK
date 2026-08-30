@@ -9,7 +9,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0mm; /* ลบ URL, วันที่, และเลขหน้าของ Browser ออก */
+    margin: 15mm 15mm 15mm 15mm;
   }
 
   *, *::before, *::after {

@@ -551,7 +551,7 @@ export default function ProcurementOrderPanel({
           <style>
             @page {
               size: A4 portrait;
-              margin: 0mm; /* ลบ URL, วันที่, และเลขหน้าของ Browser ออก */
+              margin: 15mm 15mm 15mm 15mm; /* เว้นระยะขอบกระดาษ 15mm รอบด้าน กำลังสวยงามและพอดี */
             }
             *, *::before, *::after {
               box-sizing: border-box;
@@ -571,7 +571,7 @@ export default function ProcurementOrderPanel({
               background: #ffffff;
               font-size: 9.5pt;
               line-height: 1.35;
-              padding: 0 14mm;
+              padding: 0;
               margin: 0;
               width: 100%;
             }
@@ -672,7 +672,7 @@ export default function ProcurementOrderPanel({
             <thead>
               <!-- หัวเอกสารที่จะแสดงซ้ำทุกหน้าที่พิมพ์ ไม่ให้หน้าถัดไปชิดขอบหรือขาดหัวเอกสาร -->
               <tr style="border: none; background: transparent;">
-                <th colspan="10" style="border: none; background: transparent; padding: 12mm 0 8px 0; text-align: left; font-weight: normal;">
+                <th colspan="10" style="border: none; background: transparent; padding: 0 0 10px 0; text-align: left; font-weight: normal;">
                   <div class="header-box">
                     <h2>ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ</h2>
                     <h3>BK Lab Plus</h3>
