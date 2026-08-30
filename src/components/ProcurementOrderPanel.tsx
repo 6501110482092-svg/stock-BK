@@ -5,7 +5,8 @@ import {
   CheckCircle2, AlertTriangle, PackageX, Sparkles, Printer, Copy, 
   Download, ChevronDown, ChevronUp, Layers, HelpCircle, ArrowRight,
   TrendingUp, Boxes, DollarSign, Calendar, RefreshCw, X, ShieldAlert,
-  Check, Info, FileSpreadsheet, Building2, Package
+  Check, Info, FileSpreadsheet, Building2, Package, ArrowUpDown,
+  ArrowDownAZ, ArrowUpAZ
 } from 'lucide-react';
 import { StockItem, WithdrawalLog, ProcurementTarget } from '../types';
 import { formatThaiDate } from '../utils';
@@ -33,6 +34,7 @@ export default function ProcurementOrderPanel({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'need-order' | 'sufficient' | 'urgent'>('all');
+  const [sortBy, setSortBy] = useState<string>('testName-asc');
 
   // Expanded details for linked LOTs
   const [expandedTestIds, setExpandedTestIds] = useState<Record<string, boolean>>({});
@@ -51,6 +53,7 @@ export default function ProcurementOrderPanel({
 
   // Print & PO Preview Modal
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printMode, setPrintMode] = useState<'need-order' | 'all-filtered'>('need-order');
 
   // Toast / Copy notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -168,6 +171,61 @@ export default function ProcurementOrderPanel({
       return matchSearch && matchGroup && matchStatus;
     });
   }, [aggregatedData, searchTerm, selectedGroup, statusFilter]);
+
+  // Sorted rows based on user chosen sorting mode (ก-ฮ, กลุ่มงาน, ปริมาณ, งบประมาณ)
+  const sortedData = useMemo(() => {
+    const collator = new Intl.Collator('th', { numeric: true, sensitivity: 'base' });
+    return [...filteredData].sort((a, b) => {
+      if (sortBy === 'testName-asc') {
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      if (sortBy === 'testName-desc') {
+        return collator.compare(b.target.testName, a.target.testName);
+      }
+      if (sortBy === 'group-asc') {
+        const gComp = collator.compare(a.target.sampleGroup, b.target.sampleGroup);
+        if (gComp !== 0) return gComp;
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      if (sortBy === 'group-desc') {
+        const gComp = collator.compare(b.target.sampleGroup, a.target.sampleGroup);
+        if (gComp !== 0) return gComp;
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      if (sortBy === 'orderQty-desc') {
+        if (b.actualOrderQty !== a.actualOrderQty) {
+          return b.actualOrderQty - a.actualOrderQty;
+        }
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      if (sortBy === 'orderQty-asc') {
+        if (a.actualOrderQty !== b.actualOrderQty) {
+          return a.actualOrderQty - b.actualOrderQty;
+        }
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      if (sortBy === 'cost-desc') {
+        if (b.estimatedCost !== a.estimatedCost) {
+          return b.estimatedCost - a.estimatedCost;
+        }
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      if (sortBy === 'status-urgent') {
+        const priority: Record<string, number> = { urgent: 1, 'need-order': 2, sufficient: 3, surplus: 4 };
+        const pA = priority[a.status] || 5;
+        const pB = priority[b.status] || 5;
+        if (pA !== pB) return pA - pB;
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      if (sortBy === 'stock-asc') {
+        if (a.currentStock !== b.currentStock) {
+          return a.currentStock - b.currentStock;
+        }
+        return collator.compare(a.target.testName, b.target.testName);
+      }
+      return 0;
+    });
+  }, [filteredData, sortBy]);
 
   // KPI calculations
   const kpis = useMemo(() => {
@@ -326,21 +384,41 @@ export default function ProcurementOrderPanel({
 
   // Copy order summary to clipboard
   const handleCopyOrderSummary = () => {
-    const needOrderItems = aggregatedData.filter(d => d.actualOrderQty > 0);
+    const needOrderItems = sortedData.filter(d => d.actualOrderQty > 0);
     if (needOrderItems.length === 0) {
       showToast('ℹ️ ขณะนี้สต็อกเพียงพอทุกรายการ ไม่มีรายการที่ต้องสั่งซื้อ');
       return;
     }
 
+    const sortLabels: Record<string, string> = {
+      'testName-asc': 'ชื่อ Test (ก - ฮ, A - Z)',
+      'testName-desc': 'ชื่อ Test (ฮ - ก, Z - A)',
+      'group-asc': 'กลุ่มงาน (ก - ฮ)',
+      'group-desc': 'กลุ่มงาน (ฮ - ก)',
+      'orderQty-desc': 'จำนวนที่ต้องสั่งซื้อ (มาก ➜ น้อย)',
+      'orderQty-asc': 'จำนวนที่ต้องสั่งซื้อ (น้อย ➜ มาก)',
+      'cost-desc': 'งบประมาณสั่งซื้อ (มาก ➜ น้อย)',
+      'status-urgent': 'ความเร่งด่วน (วิกฤตก่อน)',
+      'stock-asc': 'สต็อกคงเหลือ (น้อยสุดก่อน)'
+    };
+
     const dateStr = formatThaiDate(new Date().toISOString());
+    const totalUnits = needOrderItems.reduce((s, d) => s + d.actualOrderQty, 0);
+    const totalBudget = needOrderItems.reduce((s, d) => s + d.estimatedCost, 0);
+
     let text = `📋 แผนรายการสั่งซื้อน้ำยาและชุดตรวจทางห้องปฏิบัติการ (ประจำเดือนถัดไป)\n`;
+    text += `🏢 หน่วยงาน: BK Lab Plus\n`;
     text += `📅 วันที่สรุปแผน: ${dateStr}\n`;
+    if (selectedGroup) {
+      text += `🔬 กลุ่มงาน: ${selectedGroup}\n`;
+    }
+    text += `🔤 จัดเรียงตาม: ${sortLabels[sortBy] || 'มาตรฐาน'}\n`;
     text += `--------------------------------------------------\n`;
-    text += `สรุปรายการที่ต้องสั่งซื้อทั้งหมด: ${needOrderItems.length} รายการ\n`;
-    text += `งบประมาณจัดซื้อโดยประมาณ: ${kpis.totalEstimatedBudget.toLocaleString()} บาท\n\n`;
+    text += `สรุปรายการที่ต้องสั่งซื้อทั้งหมด: ${needOrderItems.length} รายการ (${totalUnits.toLocaleString()} หน่วย)\n`;
+    text += `งบประมาณจัดซื้อโดยประมาณ: ฿${totalBudget.toLocaleString()} บาท\n\n`;
 
     needOrderItems.forEach((d, idx) => {
-      text += `${idx + 1}. ${d.target.testName} (${d.target.sampleGroup})\n`;
+      text += `${idx + 1}. ${d.target.testName} [กลุ่มงาน: ${d.target.sampleGroup}]\n`;
       text += `   - เป้าหมายใช้/เดือน: ${d.target.monthlyTargetQty} ${d.target.unitName} (สำรอง +${d.target.safetyStockQty})\n`;
       text += `   - สต็อกคงเหลือในคลังขณะนี้: ${d.currentStock} ${d.target.unitName} (รวม ${d.linkedItems.length} ล็อต)\n`;
       text += `   - 🎯 ปริมาณที่ต้องสั่งซื้อ: ${d.actualOrderQty} ${d.target.unitName}`;
@@ -348,7 +426,7 @@ export default function ProcurementOrderPanel({
         text += ` (จำนวน ${d.packsNeeded} กล่อง @ ${d.target.packSize} ${d.target.unitName}/กล่อง)`;
       }
       if (d.pricePerUnit > 0) {
-        text += ` | ประมาณราคา: ${d.estimatedCost.toLocaleString()} บาท`;
+        text += ` | ประมาณราคา: ฿${d.estimatedCost.toLocaleString()} (@฿${d.pricePerUnit.toLocaleString()})`;
       }
       if (d.target.supplier) {
         text += ` | ตัวแทน: ${d.target.supplier}`;
@@ -357,18 +435,19 @@ export default function ProcurementOrderPanel({
     });
 
     text += `--------------------------------------------------\n`;
-    text += `* ออกรายงานโดยระบบจัดการคลังและวางแผนสั่งซื้อน้ำยาคลินิกแล็บ`;
+    text += `* ออกรายงานโดยระบบ BK Lab Plus`;
 
     navigator.clipboard.writeText(text).then(() => {
-      showToast('📋 คัดลอกรายการสั่งซื้อสำหรับส่ง LINE / Email เรียบร้อยแล้ว!');
+      showToast(`📋 คัดลอกรายการสั่งซื้อ ${needOrderItems.length} รายการเรียบร้อยแล้ว!`);
     }).catch(() => {
       alert('ไม่สามารถคัดลอกข้อความได้อัตโนมัติ');
     });
   };
 
-  // Export to CSV
+  // Export to CSV based on current filters and sorting
   const handleExportCSV = () => {
     const headers = [
+      'ลำดับ',
       'ชื่อ Test/น้ำยา',
       'กลุ่มงาน',
       'เป้าหมายใช้/เดือน',
@@ -387,7 +466,8 @@ export default function ProcurementOrderPanel({
       'หมายเหตุ'
     ];
 
-    const rows = aggregatedData.map(d => [
+    const rows = sortedData.map((d, idx) => [
+      idx + 1,
       `"${d.target.testName.replace(/"/g, '""')}"`,
       `"${d.target.sampleGroup.replace(/"/g, '""')}"`,
       d.target.monthlyTargetQty,
@@ -411,7 +491,7 @@ export default function ProcurementOrderPanel({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `lab_procurement_order_plan_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `bklab_procurement_plan_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -442,7 +522,24 @@ export default function ProcurementOrderPanel({
       return;
     }
 
-    const rowsToPrint = aggregatedData.filter(d => d.actualOrderQty > 0);
+    const sortLabels: Record<string, string> = {
+      'testName-asc': 'ชื่อ Test (ก - ฮ, A - Z)',
+      'testName-desc': 'ชื่อ Test (ฮ - ก, Z - A)',
+      'group-asc': 'กลุ่มงาน (ก - ฮ)',
+      'group-desc': 'กลุ่มงาน (ฮ - ก)',
+      'orderQty-desc': 'จำนวนที่ต้องสั่งซื้อ (มาก ➜ น้อย)',
+      'orderQty-asc': 'จำนวนที่ต้องสั่งซื้อ (น้อย ➜ มาก)',
+      'cost-desc': 'งบประมาณสั่งซื้อ (มาก ➜ น้อย)',
+      'status-urgent': 'ความเร่งด่วน (วิกฤตก่อน)',
+      'stock-asc': 'สต็อกคงเหลือ (น้อยสุดก่อน)'
+    };
+
+    const rowsToPrint = printMode === 'all-filtered'
+      ? sortedData
+      : sortedData.filter(d => d.actualOrderQty > 0);
+
+    const totalPrintUnits = rowsToPrint.reduce((s, d) => s + d.actualOrderQty, 0);
+    const totalPrintBudget = rowsToPrint.reduce((s, d) => s + d.estimatedCost, 0);
 
     doc.open();
     doc.write(`
@@ -568,7 +665,7 @@ export default function ProcurementOrderPanel({
             <h2>ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ</h2>
             <h3>BK Lab Plus</h3>
             <div class="meta-flex">
-              <span>เลขที่เอกสาร: PO-${new Date().getFullYear() + 543}-${String(new Date().getMonth() + 1).padStart(2, '0')}-001</span>
+              <span>เลขที่เอกสาร: PO-${new Date().getFullYear() + 543}-${String(new Date().getMonth() + 1).padStart(2, '0')}-001 ${selectedGroup ? `| กลุ่มงาน: ${selectedGroup}` : ''} | เรียงตาม: ${sortLabels[sortBy] || 'ชื่อ Test'}</span>
               <span>วันที่จัดทำ: ${formatThaiDate(new Date().toISOString())}</span>
             </div>
           </div>
@@ -606,7 +703,7 @@ export default function ProcurementOrderPanel({
               ${rowsToPrint.length === 0 ? `
                 <tr>
                   <td colspan="10" class="text-center" style="padding: 16px; color: #94a3b8;">
-                    ไม่มีรายการที่ต้องสั่งซื้อ (สต็อกปัจจุบันเพียงพอทุกรายการ)
+                    ไม่มีรายการตามเงื่อนไขที่เลือก
                   </td>
                 </tr>
               ` : ''}
@@ -617,12 +714,12 @@ export default function ProcurementOrderPanel({
                   รวมทั้งสิ้น (${rowsToPrint.length} รายการ):
                 </td>
                 <td class="text-center font-bold" style="color: #4338ca;">
-                  ${kpis.totalUnitsToOrder.toLocaleString()}
+                  ${totalPrintUnits.toLocaleString()}
                 </td>
                 <td class="text-center">หน่วย</td>
                 <td class="text-right">งบประมาณรวม:</td>
                 <td class="text-right font-bold">
-                  ฿${kpis.totalEstimatedBudget.toLocaleString()}
+                  ฿${totalPrintBudget.toLocaleString()}
                 </td>
                 <td></td>
               </tr>
@@ -871,6 +968,29 @@ export default function ProcurementOrderPanel({
             </select>
           </div>
 
+          {/* Sort By Dropdown */}
+          <div className="min-w-[210px] relative">
+            <div className="relative flex items-center">
+              <ArrowUpDown className="w-3.5 h-3.5 absolute left-3 text-teal-600 dark:text-teal-400 pointer-events-none" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-teal-500 dark:text-white cursor-pointer"
+                title="เลือกวิธีเรียงลำดับรายการและเอกสารพิมพ์"
+              >
+                <option value="testName-asc">🔤 ชื่อ Test (ก - ฮ, A - Z)</option>
+                <option value="testName-desc">🔤 ชื่อ Test (ฮ - ก, Z - A)</option>
+                <option value="group-asc">🏢 เรียงตามกลุ่มงาน (ก - ฮ)</option>
+                <option value="group-desc">🏢 เรียงตามกลุ่มงาน (ฮ - ก)</option>
+                <option value="orderQty-desc">🛒 ปริมาณขอซื้อ (มาก ➜ น้อย)</option>
+                <option value="orderQty-asc">🛒 ปริมาณขอซื้อ (น้อย ➜ มาก)</option>
+                <option value="cost-desc">💰 งบประมาณ (มาก ➜ น้อย)</option>
+                <option value="status-urgent">🚨 ความเร่งด่วน (วิกฤตก่อน)</option>
+                <option value="stock-asc">📉 สต็อกคงเหลือ (น้อยสุดก่อน)</option>
+              </select>
+            </div>
+          </div>
+
           {/* Status Filter Tabs */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-1">
             <button
@@ -934,7 +1054,7 @@ export default function ProcurementOrderPanel({
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-              ตารางวิเคราะห์ความต้องการสั่งซื้อราย Test ({filteredData.length} รายการ)
+              ตารางวิเคราะห์ความต้องการสั่งซื้อราย Test ({sortedData.length} รายการ)
             </h3>
             <span className="text-xs text-slate-400">
               (รวมยอดจากทุก Lot ในคลังปัจจุบัน)
@@ -945,7 +1065,7 @@ export default function ProcurementOrderPanel({
           </span>
         </div>
 
-        {filteredData.length === 0 ? (
+        {sortedData.length === 0 ? (
           <div className="py-16 text-center text-slate-400">
             <PackageX className="w-12 h-12 mx-auto text-slate-300 mb-3" />
             <p className="text-sm font-semibold">ไม่พบข้อมูล Test ตามเงื่อนไขที่ค้นหา</p>
@@ -953,7 +1073,7 @@ export default function ProcurementOrderPanel({
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {filteredData.map((item) => {
+            {sortedData.map((item) => {
               const isExpanded = !!expandedTestIds[item.target.id];
 
               return (
@@ -1545,147 +1665,199 @@ export default function ProcurementOrderPanel({
 
       {/* Modal: Printable PO Form (ใบขออนุมัติสั่งซื้อน้ำยาและเวชภัณฑ์ห้องแล็บ) */}
       <AnimatePresence>
-        {isPrintModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs print-po-modal-overlay">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white text-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden print-po-modal-container"
-            >
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-100 print-po-modal-header print-hidden">
-                <div className="flex items-center gap-2">
-                  <Printer className="w-5 h-5 text-indigo-600" />
-                  <span className="font-bold text-sm">ตัวอย่างเอกสารใบขอจัดซื้อน้ำยาแล็บ (Purchase Order Preview)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handlePrintPODocument}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    สั่งพิมพ์เอกสาร (Print)
-                  </button>
-                  <button
-                    onClick={() => setIsPrintModalOpen(false)}
-                    className="p-2 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+        {isPrintModalOpen && (() => {
+          const sortLabels: Record<string, string> = {
+            'testName-asc': 'ชื่อ Test (ก - ฮ, A - Z)',
+            'testName-desc': 'ชื่อ Test (ฮ - ก, Z - A)',
+            'group-asc': 'กลุ่มงาน (ก - ฮ)',
+            'group-desc': 'กลุ่มงาน (ฮ - ก)',
+            'orderQty-desc': 'จำนวนที่ต้องสั่งซื้อ (มาก ➜ น้อย)',
+            'orderQty-asc': 'จำนวนที่ต้องสั่งซื้อ (น้อย ➜ มาก)',
+            'cost-desc': 'งบประมาณสั่งซื้อ (มาก ➜ น้อย)',
+            'status-urgent': 'ความเร่งด่วน (วิกฤตก่อน)',
+            'stock-asc': 'สต็อกคงเหลือ (น้อยสุดก่อน)'
+          };
 
-              {/* Printable Content */}
-              <div className="p-6 md:p-8 overflow-y-auto flex-1 text-slate-900 font-sans space-y-4 print:space-y-3 print:p-0 print-po-paper">
-                
-                {/* Header */}
-                <div className="text-center border-b-2 border-slate-800 pb-3 print:pb-2">
-                  <h2 className="text-lg md:text-xl font-bold uppercase tracking-wide print:text-base">
-                    ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ
-                  </h2>
-                  <h3 className="text-xs md:text-sm font-semibold text-slate-600 mt-0.5 print:text-xs">
-                    BK Lab Plus
-                  </h3>
-                  <div className="flex justify-between items-center text-[11px] text-slate-500 mt-2 print:text-[10px]">
-                    <span>เลขที่เอกสาร: PO-{new Date().getFullYear() + 543}-{String(new Date().getMonth() + 1).padStart(2, '0')}-001</span>
-                    <span>วันที่จัดทำ: {formatThaiDate(new Date().toISOString())}</span>
+          const modalRows = printMode === 'all-filtered'
+            ? sortedData
+            : sortedData.filter(d => d.actualOrderQty > 0);
+
+          const modalTotalUnits = modalRows.reduce((s, d) => s + d.actualOrderQty, 0);
+          const modalTotalBudget = modalRows.reduce((s, d) => s + d.estimatedCost, 0);
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs print-po-modal-overlay">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white text-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden print-po-modal-container"
+              >
+                <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-100 print-po-modal-header print-hidden">
+                  <div className="flex items-center gap-2">
+                    <Printer className="w-5 h-5 text-indigo-600" />
+                    <div>
+                      <span className="font-bold text-sm block">ตัวอย่างเอกสารใบขอจัดซื้อน้ำยาแล็บ (Purchase Order Preview)</span>
+                      <span className="text-[11px] text-slate-500">
+                        จัดเรียงตาม: <strong className="text-slate-700">{sortLabels[sortBy] || 'ชื่อ Test'}</strong>
+                        {selectedGroup && <span> | กลุ่มงาน: <strong className="text-slate-700">{selectedGroup}</strong></span>}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Toggle print mode */}
+                    <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-semibold">
+                      <button
+                        onClick={() => setPrintMode('need-order')}
+                        className={`px-2.5 py-1 rounded-md transition-all ${
+                          printMode === 'need-order'
+                            ? 'bg-white text-indigo-700 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        เฉพาะที่ต้องซื้อ ({sortedData.filter(d => d.actualOrderQty > 0).length})
+                      </button>
+                      <button
+                        onClick={() => setPrintMode('all-filtered')}
+                        className={`px-2.5 py-1 rounded-md transition-all ${
+                          printMode === 'all-filtered'
+                            ? 'bg-white text-indigo-700 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        ทุกรายการตามตัวกรอง ({sortedData.length})
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={handlePrintPODocument}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      สั่งพิมพ์เอกสาร (Print)
+                    </button>
+                    <button
+                      onClick={() => setIsPrintModalOpen(false)}
+                      className="p-2 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs print:text-[10px] border-collapse border border-slate-300">
-                    <thead>
-                      <tr className="bg-slate-100 print:bg-slate-200 text-slate-800 font-bold">
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center w-8">ลำดับ</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-left">รายการ Test / น้ำยาตรวจ</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">กลุ่มงาน</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">เป้าหมาย/ด.</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">คงเหลือ</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">จำนวนขอซื้อ</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">หน่วยนับ</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-right">ราคา/หน่วย (฿)</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-right">รวมเงิน (฿)</th>
-                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-left">ผู้จัดจำหน่าย</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {aggregatedData.filter(d => d.actualOrderQty > 0).map((item, idx) => (
-                        <tr key={item.target.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 print:bg-white'}>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-bold">{idx + 1}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 font-semibold">{item.target.testName}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.sampleGroup}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.monthlyTargetQty}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.currentStock}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-bold text-indigo-700 print:text-black">{item.actualOrderQty}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.unitName}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right">{item.pricePerUnit.toLocaleString()}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right font-bold">{item.estimatedCost.toLocaleString()}</td>
-                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-slate-600 print:text-black">{item.target.supplier || '-'}</td>
+                {/* Printable Content */}
+                <div className="p-6 md:p-8 overflow-y-auto flex-1 text-slate-900 font-sans space-y-4 print:space-y-3 print:p-0 print-po-paper">
+                  
+                  {/* Header */}
+                  <div className="text-center border-b-2 border-slate-800 pb-3 print:pb-2">
+                    <h2 className="text-lg md:text-xl font-bold uppercase tracking-wide print:text-base">
+                      ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ
+                    </h2>
+                    <h3 className="text-xs md:text-sm font-semibold text-slate-600 mt-0.5 print:text-xs">
+                      BK Lab Plus
+                    </h3>
+                    <div className="flex justify-between items-center text-[11px] text-slate-500 mt-2 print:text-[10px]">
+                      <span>เลขที่เอกสาร: PO-{new Date().getFullYear() + 543}-{String(new Date().getMonth() + 1).padStart(2, '0')}-001 {selectedGroup ? `| กลุ่มงาน: ${selectedGroup}` : ''} | เรียงตาม: ${sortLabels[sortBy] || 'ชื่อ Test'}</span>
+                      <span>วันที่จัดทำ: {formatThaiDate(new Date().toISOString())}</span>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs print:text-[10px] border-collapse border border-slate-300">
+                      <thead>
+                        <tr className="bg-slate-100 print:bg-slate-200 text-slate-800 font-bold">
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center w-8">ลำดับ</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-left">รายการ Test / น้ำยาตรวจ</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">กลุ่มงาน</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">เป้าหมาย/ด.</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">คงเหลือ</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">จำนวนขอซื้อ</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">หน่วยนับ</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-right">ราคา/หน่วย (฿)</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-right">รวมเงิน (฿)</th>
+                          <th className="border border-slate-300 print:border-slate-500 p-1.5 text-left">ผู้จัดจำหน่าย</th>
                         </tr>
-                      ))}
-                      {aggregatedData.filter(d => d.actualOrderQty > 0).length === 0 && (
-                        <tr>
-                          <td colSpan={10} className="border border-slate-300 print:border-slate-500 p-4 text-center text-slate-400">
-                            ไม่มีรายการที่ต้องสั่งซื้อ (สต็อกปัจจุบันเพียงพอทุกรายการ)
+                      </thead>
+                      <tbody>
+                        {modalRows.map((item, idx) => (
+                          <tr key={item.target.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 print:bg-white'}>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-bold">{idx + 1}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 font-semibold">{item.target.testName}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.sampleGroup}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.monthlyTargetQty}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.currentStock}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-bold text-indigo-700 print:text-black">{item.actualOrderQty}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.unitName}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right">{item.pricePerUnit.toLocaleString()}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right font-bold">{item.estimatedCost.toLocaleString()}</td>
+                            <td className="border border-slate-300 print:border-slate-500 p-1.5 text-slate-600 print:text-black">{item.target.supplier || '-'}</td>
+                          </tr>
+                        ))}
+                        {modalRows.length === 0 && (
+                          <tr>
+                            <td colSpan={10} className="border border-slate-300 print:border-slate-500 p-4 text-center text-slate-400">
+                              ไม่มีรายการตามเงื่อนไขที่เลือก
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-100 print:bg-slate-200 font-bold text-slate-900">
+                          <td colSpan={5} className="border border-slate-300 print:border-slate-500 p-1.5 text-right">
+                            รวมทั้งสิ้น ({modalRows.length} รายการ):
                           </td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-black text-indigo-700 print:text-black">
+                            {modalTotalUnits.toLocaleString()}
+                          </td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">หน่วย</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right">งบประมาณรวม:</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right font-black text-slate-900">
+                            ฿{modalTotalBudget.toLocaleString()}
+                          </td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5"></td>
                         </tr>
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-100 print:bg-slate-200 font-bold text-slate-900">
-                        <td colSpan={5} className="border border-slate-300 print:border-slate-500 p-1.5 text-right">
-                          รวมทั้งสิ้น ({aggregatedData.filter(d => d.actualOrderQty > 0).length} รายการ):
-                        </td>
-                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-black text-indigo-700 print:text-black">
-                          {kpis.totalUnitsToOrder.toLocaleString()}
-                        </td>
-                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">หน่วย</td>
-                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right">งบประมาณรวม:</td>
-                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right font-black text-slate-900">
-                          ฿{kpis.totalEstimatedBudget.toLocaleString()}
-                        </td>
-                        <td className="border border-slate-300 print:border-slate-500 p-1.5"></td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Signature Lines */}
+                  <div className="grid grid-cols-3 gap-4 pt-4 print:pt-6 text-center text-xs print:text-[10px] signature-block">
+                    <div className="space-y-6 print:space-y-6">
+                      <p className="font-semibold text-slate-700">ผู้จัดทำคำขอซื้อ (นักเทคนิคการแพทย์)</p>
+                      <div>
+                        <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
+                        <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
+                        <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6 print:space-y-6">
+                      <p className="font-semibold text-slate-700">ผู้ตรวจสอบความต้องการคลัง</p>
+                      <div>
+                        <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
+                        <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
+                        <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6 print:space-y-6">
+                      <p className="font-semibold text-slate-700">ผู้อนุมัติการจัดซื้อ (หัวหน้าห้องปฏิบัติการ)</p>
+                      <div>
+                        <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
+                        <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
+                        <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
 
-                {/* Signature Lines */}
-                <div className="grid grid-cols-3 gap-4 pt-4 print:pt-6 text-center text-xs print:text-[10px] signature-block">
-                  <div className="space-y-6 print:space-y-6">
-                    <p className="font-semibold text-slate-700">ผู้จัดทำคำขอซื้อ (นักเทคนิคการแพทย์)</p>
-                    <div>
-                      <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
-                      <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
-                      <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6 print:space-y-6">
-                    <p className="font-semibold text-slate-700">ผู้ตรวจสอบความต้องการคลัง</p>
-                    <div>
-                      <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
-                      <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
-                      <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6 print:space-y-6">
-                    <p className="font-semibold text-slate-700">ผู้อนุมัติการจัดซื้อ (หัวหน้าห้องปฏิบัติการ)</p>
-                    <div>
-                      <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
-                      <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
-                      <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-            </motion.div>
-          </div>
-        )}
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* Modal: Confirm Delete Target */}
