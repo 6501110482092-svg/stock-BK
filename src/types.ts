@@ -10,14 +10,15 @@ export type PaymentStatus = 'paid' | 'pending';
 export interface StockItem {
   id: string;
   name: string;          // ชื่อน้ำยา / อุปกรณ์
-  sampleGroup: string;   // กลุ่มตัวอย่าง เช่น เคมีคลินิก, โลหิตวิทยา
+  sampleGroup: string;   // กลุ่ม/แผนก ห้องปฏิบัติการ เช่น เคมีคลินิก, โลหิตวิทยา
   lot: string;           // LOT
   expiryDate: string;    // วันหมดอายุ
   receiveDate: string;   // วันที่รับ
-  initialQty: number;    // จำนวนชุดเริ่มต้นที่เพิ่มเข้ามา
-  currentQty: number;    // จำนวนชุดคงเหลือปัจจุบัน
+  initialQty: number;    // จำนวนเริ่มต้นที่เพิ่มเข้ามา
+  currentQty: number;    // จำนวนคงเหลือปัจจุบัน
+  unit?: string;         // หน่วยนับ เช่น ชุด, ชิ้น, test, กล่อง, ขวด, แถบ, หลอด
   totalPrice: number;    // ราคารวม
-  pricePerUnit: number;  // ราคาต่อชุด (คำนวณอัตโนมัติ: totalPrice / initialQty)
+  pricePerUnit: number;  // ราคาต่อหน่วย (คำนวณอัตโนมัติ: totalPrice / initialQty)
   paymentType: PaymentType; // เงินสด หรือ เครดิต
   paymentDueDate?: string;  // วันที่ต้องจ่าย (สำหรับเครดิต)
   paymentStatus: PaymentStatus; // สถานะชำระเงิน
@@ -31,8 +32,9 @@ export interface WithdrawalLog {
   itemId: string;        // อ้างอิง ID ไอเทม
   itemName: string;      // แฟลตชื่อเพื่อกันรายการต้นทางถูกลบหรือแก้ไข
   lot: string;
-  sampleGroup: string;
-  withdrawQty: number;   // จำนวนชุดที่เบิก
+  sampleGroup: string;   // กลุ่ม/แผนก ห้องปฏิบัติการ
+  withdrawQty: number;   // จำนวนที่เบิก
+  unit?: string;         // หน่วยนับ
   withdrawDate: string;  // เอาไปวันที่เท่าไหร่
   remainingQtyBefore: number; // คงเหลือการเบิกล่าสุด
   remainingQtyAfter: number;  // คงเหลือการเบิกหลังหักออก

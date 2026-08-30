@@ -144,7 +144,7 @@ export default function StockListPanel({
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold text-slate-500 mb-1">กลุ่มตัวอย่าง</label>
+          <label className="block text-[10px] font-bold text-slate-500 mb-1">กลุ่ม/แผนก ห้องปฏิบัติการ</label>
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
@@ -197,7 +197,7 @@ export default function StockListPanel({
           <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-500 uppercase border-b border-slate-100 dark:border-slate-800">
-                <th className="px-4 py-3">น้ำยา / แผนกวิจัย</th>
+                <th className="px-4 py-3">น้ำยา / กลุ่ม/แผนก ห้องปฏิบัติการ</th>
                 <th className="px-3 py-3 font-mono">LOT No.</th>
                 <th className="px-3 py-3 text-right">จำนวนคลังคงอยู่</th>
                 <th className="px-3 py-3 text-right">ราคารวม (เฉลี่ยต่อหน่วย)</th>
@@ -246,7 +246,7 @@ export default function StockListPanel({
                     <td className="px-3 py-3.5 text-right whitespace-nowrap">
                       <div className="flex flex-col items-end">
                         <span className="font-mono text-base font-bold text-slate-900 dark:text-slate-100">
-                          {item.currentQty} <span className="text-xs font-sans font-normal text-slate-500">/ {item.initialQty}</span>
+                          {item.currentQty} <span className="text-xs font-sans font-normal text-slate-500">/ {item.initialQty} {item.unit || 'ชุด'}</span>
                         </span>
                         {/* ป้ายเตือนสีสดของสต็อก */}
                         <span className={`mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${alertInfo.bgClass} ${alertInfo.colorClass} border ${alertInfo.borderClass}`}>
@@ -261,7 +261,7 @@ export default function StockListPanel({
                         {item.totalPrice ? item.totalPrice.toLocaleString('th-TH') : '0'} บ.
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        ({item.pricePerUnit ? item.pricePerUnit.toLocaleString('th-TH', { maximumFractionDigits: 1 }) : '0'} บ./ชิ้น)
+                        ({item.pricePerUnit ? item.pricePerUnit.toLocaleString('th-TH', { maximumFractionDigits: 1 }) : '0'} บ./{item.unit || 'ชุด'})
                       </div>
                     </td>
 

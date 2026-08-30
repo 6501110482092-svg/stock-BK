@@ -369,7 +369,7 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
         {/* จุดคัดกรองตามแผนกแล็บ */}
         <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80">
           <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-slate-400" /> กองคัดกรองตามหมวดหมู่ตัวอย่าง:
+            <Filter className="w-3.5 h-3.5 text-slate-400" /> กรองตามกลุ่ม/แผนก ห้องปฏิบัติการ:
           </span>
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -875,7 +875,7 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 text-slate-500 font-bold uppercase">
                   <th className="px-4 py-3">ชื่อสารเคมี / ชุดน้ำยา</th>
-                  <th className="px-4 py-3">กลุ่มงานแผนก</th>
+                  <th className="px-4 py-3">กลุ่ม/แผนก ห้องปฏิบัติการ</th>
                   <th className="px-4 py-3 text-right">สต็อกรวมในคลัง</th>
                   <th className="px-3 py-3 text-right text-indigo-600 dark:text-indigo-400 font-bold">เฉลี่ย 3 เดือน</th>
                   <th className="px-3 py-3 text-right text-teal-650 dark:text-teal-400 font-bold">เฉลี่ย 6 เดือน</th>

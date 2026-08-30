@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { PlusCircle, Info, DollarSign, Calendar, Tag, ShieldAlert, CheckCircle, Sparkles } from 'lucide-react';
+import { PlusCircle, DollarSign, Calendar, ShieldAlert, CheckCircle, Sparkles, Layers } from 'lucide-react';
 import { StockItem, PaymentType } from '../types';
 
 interface AddStockPanelProps {
@@ -24,6 +24,8 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
     return `${year}-${month}-${day}`;
   });
   const [initialQty, setInitialQty] = useState<number | ''>('');
+  const [unit, setUnit] = useState('ชุด');
+  const [customUnit, setCustomUnit] = useState('');
   const [totalPrice, setTotalPrice] = useState<number | ''>('');
   const [pricePerUnit, setPricePerUnit] = useState<number>(0);
   
@@ -33,6 +35,22 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
   // รายชื่อยา/น้ำยาที่มีอยู่แล้วในระบบเพื่อแนะนำการกดปุ่ม
   const savedReagentNames = useMemo(() => {
     return Array.from(new Set(stockItems.map(item => item.name))).filter(Boolean);
+  }, [stockItems]);
+
+  // รายการหน่วยนับเริ่มต้นและที่เคยบันทึกไว้ในระบบ/คลัง
+  const availableUnits = useMemo(() => {
+    const defaultUnits = ['ชุด', 'ชิ้น', 'test', 'กล่อง', 'ขวด', 'หลอด', 'แผ่น', 'แกลลอน', 'vial', 'strip'];
+    let localUnits: string[] = [];
+    try {
+      const stored = localStorage.getItem('lab_custom_units_history');
+      if (stored) {
+        localUnits = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    const stockUnits = stockItems.map(item => item.unit).filter(Boolean) as string[];
+    return Array.from(new Set([...defaultUnits, ...stockUnits, ...localUnits])).filter(Boolean);
   }, [stockItems]);
   
   // การจ่ายเงิน
@@ -60,7 +78,10 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
     }
   }, [initialQty, totalPrice]);
 
-  // ตรวจจับชื่อซ้ำเพื่อดึงข้อมูลกลุ่มตัวอย่างและเกณฑ์แจ้งเตือนที่มีอยู่เดิมมาใส่ให้อัตโนมัติ ป้องกันชื่อสะกดผิดและลดภาระการคีย์
+  // หน่วยนับปัจจุบันที่เลือกเพื่อนำไปแสดงผล
+  const activeDisplayUnit = unit === 'custom' ? (customUnit || 'ชุด') : (unit || 'ชุด');
+
+  // ตรวจจับชื่อซ้ำเพื่อดึงข้อมูลกลุ่ม/แผนก ห้องปฏิบัติการ, หน่วยนับ, และเกณฑ์แจ้งเตือนที่มีอยู่เดิมมาใส่ให้อัตโนมัติ
   useEffect(() => {
     if (!name || name.trim() === '') {
       setHasAutoFilled(false);
@@ -79,6 +100,16 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
         setCustomSampleGroup(matchedItem.sampleGroup);
       }
 
+      if (matchedItem.unit) {
+        if (availableUnits.includes(matchedItem.unit)) {
+          setUnit(matchedItem.unit);
+          setCustomUnit('');
+        } else {
+          setUnit('custom');
+          setCustomUnit(matchedItem.unit);
+        }
+      }
+
       if (matchedItem.thresholds) {
         setUseThresholds(true);
         setCriticalQty(matchedItem.thresholds.critical);
@@ -91,7 +122,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
     } else {
       setHasAutoFilled(false);
     }
-  }, [name, stockItems, sampleGroups]);
+  }, [name, stockItems, sampleGroups, availableUnits]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,14 +134,27 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
 
     const qty = Number(initialQty);
     if (qty <= 0) {
-      alert('จำนวนชุดต้องมากกว่า 0');
+      alert('จำนวนต้องมากกว่า 0');
       return;
     }
 
     const finalSampleGroup = sampleGroup === 'custom' || !sampleGroup ? customSampleGroup : sampleGroup;
     if (!finalSampleGroup) {
-      alert('กรุณาระบุกลุ่มตัวอย่าง');
+      alert('กรุณาระบุกลุ่ม/แผนก ห้องปฏิบัติการ');
       return;
+    }
+
+    const finalUnit = unit === 'custom' || !unit ? (customUnit.trim() || 'ชุด') : unit.trim();
+
+    // บันทึกหน่วยนับลงใน LocalStorage History เพื่อให้เรียกใช้ได้ง่ายในอนาคต
+    try {
+      const stored = localStorage.getItem('lab_custom_units_history');
+      const history: string[] = stored ? JSON.parse(stored) : [];
+      if (!history.includes(finalUnit)) {
+        localStorage.setItem('lab_custom_units_history', JSON.stringify([...history, finalUnit]));
+      }
+    } catch (err) {
+      console.error(err);
     }
 
     // จัดทําอ็อบเจกต์ Threshold
@@ -131,7 +175,8 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
       expiryDate,
       receiveDate,
       initialQty: qty,
-      currentQty: qty, // เริ่มต้นเท่ากับจำนวนชุดเต็ม
+      currentQty: qty, // เริ่มต้นเท่ากับจำนวนเต็ม
+      unit: finalUnit,
       totalPrice: Number(totalPrice || 0),
       pricePerUnit,
       paymentType,
@@ -152,6 +197,8 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
     setInitialQty('');
     setTotalPrice('');
     setPaymentDueDate('');
+    setUnit('ชุด');
+    setCustomUnit('');
     
     // ตั้งหน่วงเวลาปิดกล่องความสำเร็จ
     setTimeout(() => {
@@ -199,7 +246,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
               </label>
               {hasAutoFilled && (
                 <span className="text-[11px] text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 animate-spin" /> ดึงข้อมูลกลุ่มตัวอย่างและเกณฑ์สีอัตโนมัติแล้ว!
+                  <Sparkles className="w-3 h-3 animate-spin" /> ดึงข้อมูลกลุ่ม/แผนกห้องปฏิบัติการและเกณฑ์สีอัตโนมัติแล้ว!
                 </span>
               )}
             </div>
@@ -221,7 +268,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              กลุ่มตัวอย่าง / แผนกวิจัย <span className="text-rose-500">*</span>
+              กลุ่ม/แผนก ห้องปฏิบัติการ <span className="text-rose-500">*</span>
             </label>
             <div className="space-y-2">
               <select
@@ -234,7 +281,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
                 }}
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-all shadow-sm"
               >
-                <option value="">-- เลือกกลุ่มตัวอย่างที่มี --</option>
+                <option value="">-- เลือกกลุ่ม/แผนก ห้องปฏิบัติการที่มี --</option>
                 {sampleGroups.map((group) => (
                   <option key={group} value={group}>
                     {group}
@@ -247,7 +294,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
                 <input
                   type="text"
                   required
-                  placeholder="พิมพ์กลุ่มตัวอย่าง เช่น โลหิตวิทยา, เคมีคลินิก, ภูมิคุ้มกันวิทยา, ปัสสาวะ"
+                  placeholder="พิมพ์กลุ่ม/แผนก ห้องปฏิบัติการ เช่น โลหิตวิทยา, เคมีคลินิก, ภูมิคุ้มกันวิทยา, ปัสสาวะ"
                   value={customSampleGroup}
                   onChange={(e) => setCustomSampleGroup(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-emerald-50/50 dark:bg-slate-850 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-all shadow-sm"
@@ -299,17 +346,18 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
           </div>
         </div>
 
-        {/* ส่วนที่ 2: จำนวนและราคา (คำนวณราคาต่อชุด) */}
-        <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800/80">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-300 mb-3 flex items-center gap-1.5">
+        {/* ส่วนที่ 2: จำนวน, หน่วยนับ และราคา */}
+        <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-4">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-300 flex items-center gap-1.5">
             <DollarSign className="w-4 h-4 text-emerald-500" /> 
-            ข้อมูลราคาและปริมาณนำเข้า
+            ข้อมูลราคา ปริมาณนำเข้า และหน่วยนับ
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {/* 1. จำนวนนำเข้า */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                จำนวนนำเข้า (กี่ชุด/กี่ชิ้น) <span className="text-rose-500">*</span>
+                จำนวนนำเข้า ({activeDisplayUnit}) <span className="text-rose-500">*</span>
               </label>
               <input
                 type="number"
@@ -318,10 +366,50 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
                 placeholder="เช่น 100"
                 value={initialQty}
                 onChange={(e) => setInitialQty(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value)))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 text-sm shadow-sm"
               />
             </div>
 
+            {/* 2. หน่วยนับ (พิมพ์เองได้ หรือเลือกจากประวัติ) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5 text-teal-600" />
+                หน่วยนับ <span className="text-rose-500">*</span>
+              </label>
+              <div className="space-y-1.5">
+                <select
+                  value={unit}
+                  onChange={(e) => {
+                    setUnit(e.target.value);
+                    if (e.target.value !== 'custom') {
+                      setCustomUnit('');
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 text-xs shadow-sm"
+                >
+                  <option value="">-- เลือกหน่วยนับ --</option>
+                  {availableUnits.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                  <option value="custom">✍️ พิมพ์หน่วยนับใหม่เอง...</option>
+                </select>
+
+                {(unit === 'custom' || availableUnits.length === 0) && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="พิมพ์หน่วยนับ เช่น ชิ้น, test, กล่อง, แถบ, ขวด"
+                    value={customUnit}
+                    onChange={(e) => setCustomUnit(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50/40 dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* 3. ราคารวมทั้งหมด */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 font-sans">
                 ราคารวมทั้งหมด (บาท)
@@ -332,16 +420,39 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
                 placeholder="เช่น 15000"
                 value={totalPrice}
                 onChange={(e) => setTotalPrice(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value)))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 text-sm shadow-sm"
               />
             </div>
 
-            <div className="flex flex-col justify-end bg-teal-500/5 dark:bg-teal-500/10 border border-teal-500/20 px-4 py-2.5 rounded-lg">
-              <span className="text-xs text-slate-500 dark:text-slate-400">ระบบคำนวณราคาต่อหน่วย:</span>
-              <span className="text-lg font-bold text-teal-700 dark:text-teal-400 font-mono">
-                {pricePerUnit.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท <span className="text-xs font-sans text-slate-500">/ ชุด</span>
+            {/* 4. ราคาต่อหน่วยเฉลี่ย */}
+            <div className="flex flex-col justify-end bg-teal-500/5 dark:bg-teal-500/10 border border-teal-500/20 px-3 py-2 rounded-xl">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">ราคาต่อหน่วยคำนวณ:</span>
+              <span className="text-base font-bold text-teal-700 dark:text-teal-400 font-mono">
+                {pricePerUnit.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บ. <span className="text-xs font-sans text-slate-500">/{activeDisplayUnit}</span>
               </span>
             </div>
+          </div>
+
+          {/* แถบเลือกหน่วยนับด่วน (Quick Selection Chips) */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+            <span className="text-[11px] text-slate-400 font-medium mr-1">หน่วยนับที่ใช้บ่อย:</span>
+            {availableUnits.slice(0, 8).map((u) => (
+              <button
+                type="button"
+                key={u}
+                onClick={() => {
+                  setUnit(u);
+                  setCustomUnit('');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  unit === u 
+                    ? 'bg-teal-600 text-white shadow-xs font-bold' 
+                    : 'bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-teal-500'
+                }`}
+              >
+                {u}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -381,7 +492,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
                   onChange={(e) => setHighQty(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value)))}
                   className="w-full px-2.5 py-1.5 text-sm rounded-md border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
                 />
-                <span className="text-[10px] text-slate-500 mt-1 block">ขึ้นสีเขียวเมื่อมีมากกว่าค่านี้</span>
+                <span className="text-[10px] text-slate-500 mt-1 block">ขึ้นสีเขียวเมื่อมีมากกว่าค่านี้ ({activeDisplayUnit})</span>
               </div>
 
               <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-lg">
@@ -399,7 +510,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
                   onChange={(e) => setLowQty(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value)))}
                   className="w-full px-2.5 py-1.5 text-sm rounded-md border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
                 />
-                <span className="text-[10px] text-slate-500 mt-1 block">เตือนสีเหลืองเมื่อจํานวนลดลงมาต่ำกว่าหรือเท่ากับค่านี้</span>
+                <span className="text-[10px] text-slate-500 mt-1 block">เตือนสีเหลืองเมื่อจํานวนลดลงมาต่ำกว่าหรือเท่ากับค่านี้ ({activeDisplayUnit})</span>
               </div>
 
               <div className="bg-rose-500/5 border border-rose-500/10 p-3 rounded-lg">
@@ -417,7 +528,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
                   onChange={(e) => setCriticalQty(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value)))}
                   className="w-full px-2.5 py-1.5 text-sm rounded-md border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
                 />
-                <span className="text-[10px] text-slate-500 mt-1 block">เตือนสีแดงเข้มเมือคงเหลือน้อยกว่าหรือเท่ากับระดับวิกฤตนี้</span>
+                <span className="text-[10px] text-slate-500 mt-1 block">เตือนสีแดงเข้มเมือคงเหลือน้อยกว่าหรือเท่ากับระดับวิกฤตนี้ ({activeDisplayUnit})</span>
               </div>
             </div>
           ) : (

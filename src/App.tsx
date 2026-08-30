@@ -350,6 +350,7 @@ export default function App() {
       lot: item.lot,
       sampleGroup: item.sampleGroup,
       withdrawQty: qty,
+      unit: item.unit || 'ชุด',
       withdrawDate,
       remainingQtyBefore,
       remainingQtyAfter
@@ -405,6 +406,7 @@ export default function App() {
         lot: d.item.lot,
         sampleGroup: d.item.sampleGroup,
         withdrawQty: d.qtyDeducted,
+        unit: d.item.unit || 'ชุด',
         withdrawDate,
         remainingQtyBefore: d.before,
         remainingQtyAfter: d.after

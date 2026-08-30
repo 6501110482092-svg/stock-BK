@@ -245,7 +245,9 @@ export default function WithdrawStockPanel({
               >
                 <div className="flex justify-between items-center text-teal-300 font-bold">
                   <span>📊 ข้อมูลรวมน้ำยา "{fefoItemName}" ในคลัง:</span>
-                  <span className="font-mono bg-teal-400/20 px-2 py-0.5 rounded text-white">รวมทุกล็อต = {selectedItemTotalQty} ชุด</span>
+                  <span className="font-mono bg-teal-400/20 px-2 py-0.5 rounded text-white">
+                    รวมทุกล็อต = {selectedItemTotalQty} {selectedItemLots[0]?.unit || 'ชุด'}
+                  </span>
                 </div>
                 
                 <div className="space-y-1 pt-1">
@@ -257,7 +259,7 @@ export default function WithdrawStockPanel({
                         คิวที่ {index + 1}: ล็อต <strong className="text-white">{lotItem.lot}</strong>
                         {index === 0 && <span className="bg-teal-500/20 text-teal-300 text-[9px] px-1.5 py-0.2 rounded ml-1 border border-teal-500/20 font-sans">🔥 เบิกก่อน</span>}
                       </span>
-                      <span>สต็อก {lotItem.currentQty} ชุด (หมดอายุ {formatThaiDate(lotItem.expiryDate)})</span>
+                      <span>สต็อก {lotItem.currentQty} {lotItem.unit || 'ชุด'} (หมดอายุ {formatThaiDate(lotItem.expiryDate)})</span>
                     </div>
                   ))}
                 </div>
@@ -369,7 +371,7 @@ export default function WithdrawStockPanel({
                 onChange={(e) => setSelectedGroup(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-800 dark:text-slate-100 focus:outline-none"
               >
-                <option value="">กลุ่มตัวอย่างทั้งหมด ({sampleGroups.length})</option>
+                <option value="">กลุ่ม/แผนก ห้องปฏิบัติการทั้งหมด ({sampleGroups.length})</option>
                 {sampleGroups.map((group) => (
                   <option key={group} value={group}>
                     {group}
@@ -479,7 +481,7 @@ export default function WithdrawStockPanel({
                           <span className="text-xl font-bold text-slate-800 dark:text-slate-100 font-mono">
                             {item.currentQty}
                           </span>
-                          <span className="text-xs text-slate-500">/ {item.initialQty} ชุด</span>
+                          <span className="text-xs text-slate-500">/ {item.initialQty} {item.unit || 'ชุด'}</span>
                         </div>
                       </div>
                       <div className="text-right">
@@ -512,7 +514,7 @@ export default function WithdrawStockPanel({
                       <input
                         type="number"
                         min="1"
-                        placeholder="จำนวนเบิก (ว่าง=1)"
+                        placeholder={`จำนวน (${item.unit || 'ชุด'})`}
                         disabled={item.currentQty <= 0}
                         value={userQtyInput}
                         onChange={(e) => handleQtyChange(item.id, e.target.value)}
@@ -599,12 +601,12 @@ export default function WithdrawStockPanel({
                         </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-500 font-semibold">{log.lot}</td>
-                      <td className="px-4 py-3 text-right font-mono">{log.withdrawQty} ชุด</td>
+                      <td className="px-4 py-3 text-right font-mono">{log.withdrawQty} {log.unit || 'ชุด'}</td>
                       <td className="px-4 py-3 text-right text-rose-600 font-bold font-mono">
-                        -{log.withdrawQty} ชุด
+                        -{log.withdrawQty} {log.unit || 'ชุด'}
                       </td>
                       <td className="px-4 py-3 text-right text-teal-600 font-bold font-mono bg-teal-500/5">
-                        {log.remainingQtyAfter} ชุด
+                        {log.remainingQtyAfter} {log.unit || 'ชุด'}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {onCancelWithdraw && (
