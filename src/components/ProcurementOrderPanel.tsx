@@ -551,7 +551,7 @@ export default function ProcurementOrderPanel({
           <style>
             @page {
               size: A4 portrait;
-              margin: 0mm; /* ลบ URL, วันที่, และเลขหน้าของ Browser ออก */
+              margin: 12mm 14mm 12mm 14mm; /* เว้นระยะขอบกระดาษทุกหน้า ไม่ให้ชิดขอบบน */
             }
             *, *::before, *::after {
               box-sizing: border-box;
@@ -571,7 +571,7 @@ export default function ProcurementOrderPanel({
               background: #ffffff;
               font-size: 9.5pt;
               line-height: 1.35;
-              padding: 12mm 14mm 10mm 14mm;
+              padding: 0;
               margin: 0;
               width: 100%;
             }
@@ -604,15 +604,21 @@ export default function ProcurementOrderPanel({
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 8px;
+              margin-top: 0;
               margin-bottom: 12px;
               font-size: 8.5pt;
+            }
+            thead {
+              display: table-header-group; /* ทำให้หัวตารางและหัวเอกสารแสดงซ้ำทุกหน้าอัตโนมัติ */
+            }
+            tfoot {
+              display: table-footer-group;
             }
             th, td {
               border: 1px solid #64748b;
               padding: 4px 5px;
             }
-            th {
+            .col-header th {
               background-color: #f1f5f9;
               font-weight: 700;
               text-align: center;
@@ -630,7 +636,7 @@ export default function ProcurementOrderPanel({
             .signatures-grid {
               display: flex;
               justify-content: space-between;
-              margin-top: 18px;
+              margin-top: 24px;
               page-break-inside: avoid;
               break-inside: avoid;
               text-align: center;
@@ -661,18 +667,22 @@ export default function ProcurementOrderPanel({
           </style>
         </head>
         <body>
-          <div class="header-box">
-            <h2>ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ</h2>
-            <h3>BK Lab Plus</h3>
-            <div class="meta-flex">
-              <span>เลขที่เอกสาร: PO-${new Date().getFullYear() + 543}-${String(new Date().getMonth() + 1).padStart(2, '0')}-001 ${selectedGroup ? `| กลุ่มงาน: ${selectedGroup}` : ''} | เรียงตาม: ${sortLabels[sortBy] || 'ชื่อ Test'}</span>
-              <span>วันที่จัดทำ: ${formatThaiDate(new Date().toISOString())}</span>
-            </div>
-          </div>
-
           <table>
             <thead>
-              <tr>
+              <!-- หัวเอกสารที่จะแสดงซ้ำทุกหน้าที่พิมพ์ ไม่ให้หน้าถัดไปชิดขอบหรือขาดหัวเอกสาร -->
+              <tr style="border: none; background: transparent;">
+                <th colspan="10" style="border: none; background: transparent; padding: 0 0 8px 0; text-align: left; font-weight: normal;">
+                  <div class="header-box">
+                    <h2>ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ</h2>
+                    <h3>BK Lab Plus</h3>
+                    <div class="meta-flex">
+                      <span>เลขที่เอกสาร: PO-${new Date().getFullYear() + 543}-${String(new Date().getMonth() + 1).padStart(2, '0')}-001 ${selectedGroup ? `| กลุ่มงาน: ${selectedGroup}` : ''} | เรียงตาม: ${sortLabels[sortBy] || 'ชื่อ Test'}</span>
+                      <span>วันที่จัดทำ: ${formatThaiDate(new Date().toISOString())}</span>
+                    </div>
+                  </div>
+                </th>
+              </tr>
+              <tr class="col-header">
                 <th style="width: 32px;">ลำดับ</th>
                 <th style="text-align: left;">รายการ Test / น้ำยาตรวจ</th>
                 <th>กลุ่มงาน</th>
@@ -1749,24 +1759,27 @@ export default function ProcurementOrderPanel({
                 {/* Printable Content */}
                 <div className="p-6 md:p-8 overflow-y-auto flex-1 text-slate-900 font-sans space-y-4 print:space-y-3 print:p-0 print-po-paper">
                   
-                  {/* Header */}
-                  <div className="text-center border-b-2 border-slate-800 pb-3 print:pb-2">
-                    <h2 className="text-lg md:text-xl font-bold uppercase tracking-wide print:text-base">
-                      ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ
-                    </h2>
-                    <h3 className="text-xs md:text-sm font-semibold text-slate-600 mt-0.5 print:text-xs">
-                      BK Lab Plus
-                    </h3>
-                    <div className="flex justify-between items-center text-[11px] text-slate-500 mt-2 print:text-[10px]">
-                      <span>เลขที่เอกสาร: PO-{new Date().getFullYear() + 543}-{String(new Date().getMonth() + 1).padStart(2, '0')}-001 {selectedGroup ? `| กลุ่มงาน: ${selectedGroup}` : ''} | เรียงตาม: ${sortLabels[sortBy] || 'ชื่อ Test'}</span>
-                      <span>วันที่จัดทำ: {formatThaiDate(new Date().toISOString())}</span>
-                    </div>
-                  </div>
-
                   {/* Table */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs print:text-[10px] border-collapse border border-slate-300">
                       <thead>
+                        {/* Header Row repeated on every page */}
+                        <tr style={{ border: 'none', background: 'transparent' }}>
+                          <th colSpan={10} style={{ border: 'none', background: 'transparent', padding: '0 0 10px 0', textAlign: 'left', fontWeight: 'normal' }}>
+                            <div className="text-center border-b-2 border-slate-800 pb-3 print:pb-2">
+                              <h2 className="text-lg md:text-xl font-bold uppercase tracking-wide print:text-base text-slate-900">
+                                ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ
+                              </h2>
+                              <h3 className="text-xs md:text-sm font-semibold text-slate-600 mt-0.5 print:text-xs">
+                                BK Lab Plus
+                              </h3>
+                              <div className="flex justify-between items-center text-[11px] text-slate-500 mt-2 print:text-[10px]">
+                                <span>เลขที่เอกสาร: PO-{new Date().getFullYear() + 543}-{String(new Date().getMonth() + 1).padStart(2, '0')}-001 {selectedGroup ? `| กลุ่มงาน: ${selectedGroup}` : ''} | เรียงตาม: {sortLabels[sortBy] || 'ชื่อ Test'}</span>
+                                <span>วันที่จัดทำ: {formatThaiDate(new Date().toISOString())}</span>
+                              </div>
+                            </div>
+                          </th>
+                        </tr>
                         <tr className="bg-slate-100 print:bg-slate-200 text-slate-800 font-bold">
                           <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center w-8">ลำดับ</th>
                           <th className="border border-slate-300 print:border-slate-500 p-1.5 text-left">รายการ Test / น้ำยาตรวจ</th>

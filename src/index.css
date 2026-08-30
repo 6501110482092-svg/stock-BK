@@ -9,7 +9,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0mm; /* Disable browser URL, title, date, and page numbers */
+    margin: 12mm 14mm 12mm 14mm; /* เว้นขอบกระดาษทุกหน้า 12mm บน-ล่าง 14mm ซ้าย-ขวา ป้องกันเนื้อหาชิดขอบ */
   }
 
   *, *::before, *::after {
@@ -52,7 +52,7 @@
     display: block !important;
     background: transparent !important;
     backdrop-filter: none !important;
-    padding: 12mm 14mm !important;
+    padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
     height: auto !important;
