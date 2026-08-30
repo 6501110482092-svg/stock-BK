@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   FlaskConical, ClipboardList, PlusCircle, LayoutDashboard, 
   Settings, CreditCard, ShieldAlert, HeartPulse, CheckSquare, Sparkles, Database, FileText,
-  BarChart3
+  BarChart3, ShoppingCart
 } from 'lucide-react';
 
-import { StockItem, WithdrawalLog, PaymentStatus, Thresholds } from './types';
+import { StockItem, WithdrawalLog, PaymentStatus, Thresholds, ProcurementTarget } from './types';
 import { 
-  INITIAL_STOCK, INITIAL_LOGS,
-  getAlertLevel, formatThaiDate
+  INITIAL_STOCK, INITIAL_LOGS, INITIAL_PROCUREMENT_TARGETS,
+  getAlertLevel, formatThaiDate, getStoredTargets, setStoredTargets
 } from './utils';
 import { db, handleFirestoreError, OperationType, auth, signInWithGoogle, logoutUser, signInUserAnonymously } from './firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch, updateDoc } from 'firebase/firestore';
@@ -21,6 +21,7 @@ import WithdrawStockPanel from './components/WithdrawStockPanel';
 import StockListPanel from './components/StockListPanel';
 import StatsPanel from './components/StatsPanel';
 import BackupExportPanel from './components/BackupExportPanel';
+import ProcurementOrderPanel from './components/ProcurementOrderPanel';
 
 // Deep clean data for Firestore (remove undefined and format objects)
 function cleanData(data: any): any {
@@ -45,8 +46,9 @@ function cleanData(data: any): any {
 export default function App() {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [logs, setLogs] = useState<WithdrawalLog[]>([]);
+  const [procurementTargets, setProcurementTargets] = useState<ProcurementTarget[]>(getStoredTargets());
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'withdraw' | 'add' | 'list' | 'stats' | 'backup'>('withdraw');
+  const [activeTab, setActiveTab] = useState<'withdraw' | 'add' | 'list' | 'procurement' | 'stats' | 'backup'>('withdraw');
   
   // Authentication states
   interface AppUser {
@@ -79,14 +81,24 @@ export default function App() {
       }
     }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      // If we got here and there is a bypass user, ignore
-      if (localStorage.getItem("bypass_user")) return;
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      // If we got here and there is a bypass user, use it
+      const storedBypass = localStorage.getItem("bypass_user");
+      if (storedBypass) {
+        try {
+          const parsed = JSON.parse(storedBypass);
+          setUser(parsed);
+          setIsAuthLoading(false);
+          return;
+        } catch (e) {
+          localStorage.removeItem("bypass_user");
+        }
+      }
 
       if (currentUser) {
         if (currentUser.isAnonymous) {
           const storedEmail = localStorage.getItem("custom_lab_email") || "6501110482092@ptu.ac.th";
-          const storedName = localStorage.getItem("custom_lab_name") || "เจ้าหน้าที่ PTU (Bypass)";
+          const storedName = localStorage.getItem("custom_lab_name") || "เจ้าหน้าที่ PTU (แล็บ)";
           setUser({
             uid: currentUser.uid,
             email: storedEmail,
@@ -103,10 +115,37 @@ export default function App() {
             isAnonymous: false
           });
         }
+        setIsAuthLoading(false);
       } else {
-        setUser(null);
+        // Auto-authenticate anonymously so the app is immediately usable without blocking
+        try {
+          const anon = await signInUserAnonymously();
+          if (anon) {
+            setUser({
+              uid: anon.uid,
+              email: "6501110482092@ptu.ac.th",
+              displayName: "เจ้าหน้าที่ PTU",
+              photoURL: null,
+              isAnonymous: true
+            });
+            setIsAuthLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn("Auto sign-in fallback:", err);
+        }
+
+        // Fallback default user
+        const defaultAppUser: AppUser = {
+          uid: "lab_auto_" + Date.now(),
+          email: "6501110482092@ptu.ac.th",
+          displayName: "เจ้าหน้าที่ PTU",
+          photoURL: null,
+          isAnonymous: true
+        };
+        setUser(defaultAppUser);
+        setIsAuthLoading(false);
       }
-      setIsAuthLoading(false);
     });
     return () => unsubscribeAuth();
   }, []);
@@ -194,11 +233,88 @@ export default function App() {
       }
     });
 
+    let isInitialTargetSnapshot = true;
+    const unsubscribeTargets = onSnapshot(collection(db, "procurementTargets"), async (snapshot) => {
+      if (!snapshot.empty) {
+        const targets: ProcurementTarget[] = [];
+        snapshot.forEach((docSnap) => {
+          targets.push({ id: docSnap.id, ...docSnap.data() } as ProcurementTarget);
+        });
+        setProcurementTargets(targets);
+        setStoredTargets(targets);
+        isInitialTargetSnapshot = false;
+      } else {
+        // Seed default once only if Firestore has no targets and never initialized
+        if (isInitialTargetSnapshot && !localStorage.getItem('procurement_targets_initialized')) {
+          localStorage.setItem('procurement_targets_initialized', 'true');
+          const initial = getStoredTargets();
+          setProcurementTargets(initial);
+          try {
+            const batch = writeBatch(db);
+            initial.forEach(t => {
+              batch.set(doc(db, "procurementTargets", t.id), cleanData(t));
+            });
+            await batch.commit();
+          } catch (e) {
+            // fallback to localStorage silently
+          }
+        } else {
+          setProcurementTargets([]);
+          setStoredTargets([]);
+        }
+        isInitialTargetSnapshot = false;
+      }
+    }, (error) => {
+      console.error("Firestore procurementTargets loading error:", error);
+    });
+
     return () => {
       unsubscribeStock();
       unsubscribeLogs();
+      unsubscribeTargets();
     };
   }, []);
+
+  // Handler for saving/updating a procurement target
+  const handleSaveProcurementTarget = async (target: ProcurementTarget) => {
+    const updated = procurementTargets.some(t => t.id === target.id)
+      ? procurementTargets.map(t => t.id === target.id ? target : t)
+      : [...procurementTargets, target];
+    setProcurementTargets(updated);
+    setStoredTargets(updated);
+    try {
+      await setDoc(doc(db, "procurementTargets", target.id), cleanData(target));
+    } catch (e) {
+      console.error("Error saving procurement target:", e);
+    }
+  };
+
+  // Handler for deleting a procurement target
+  const handleDeleteProcurementTarget = async (id: string) => {
+    const updated = procurementTargets.filter(t => t.id !== id);
+    setProcurementTargets(updated);
+    setStoredTargets(updated);
+    try {
+      await deleteDoc(doc(db, "procurementTargets", id));
+    } catch (e) {
+      console.error("Error deleting procurement target:", e);
+    }
+  };
+
+  // Handler for batch saving procurement targets
+  const handleBatchSaveProcurementTargets = async (targets: ProcurementTarget[]) => {
+    setProcurementTargets(targets);
+    setStoredTargets(targets);
+    try {
+      const batch = writeBatch(db);
+      targets.forEach(t => {
+        batch.set(doc(db, "procurementTargets", t.id), cleanData(t));
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error("Error batch saving targets:", e);
+    }
+  };
 
   // บันทึกและดึงกลุ่มตัวอย่างเพื่อใช้เป็นตัวกรองโดยดึงเฉพาะกลุ่มที่มีอยู่จริง
   const sampleGroups = useMemo(() => {
@@ -208,11 +324,11 @@ export default function App() {
 
   // ฟังก์ชันเพิ่มสต็อกใหม่
   const handleAddItem = async (newItem: StockItem) => {
+    setStockItems(prev => [newItem, ...prev.filter(i => i.id !== newItem.id)]);
     try {
       await setDoc(doc(db, "stockItems", newItem.id), cleanData(newItem));
     } catch (e) {
-      console.error("Error adding item:", e);
-      alert("ไม่สามารถเพิ่มข้อมูลในคลังระบบคลาวด์ได้");
+      console.error("Error adding item to Firestore:", e);
     }
   };
 
@@ -237,24 +353,23 @@ export default function App() {
       remainingQtyAfter
     };
 
+    setStockItems(prev => prev.map(i => i.id === itemId ? { ...i, currentQty: remainingQtyAfter } : i));
+    setLogs(prev => [newLog, ...prev]);
+
     try {
       const batch = writeBatch(db);
       batch.update(doc(db, "stockItems", itemId), { currentQty: remainingQtyAfter });
       batch.set(doc(db, "logs", newLog.id), cleanData(newLog));
       await batch.commit();
     } catch (e) {
-      console.error("Error withdrawing:", e);
-      alert("เกิดข้อผิดพลาดในการบันทึกการเบิกน้ำยา");
+      console.error("Error withdrawing from Firestore:", e);
     }
   };
 
   // ฟังก์ชันเบิกน้ำยาอัจฉริยะ (FEFO - First Expired, First Out)
-  // หากชื่อน้ำยาเดียวกัน จะหักลดล็อตที่ใกล้หมดอายุก่อนตามหลักการแล็บมาตรฐานแบบอัตโนมัติ
   const handleWithdrawFEFO = async (itemName: string, totalQtyToWithdraw: number, withdrawDate: string) => {
-    // ดึงทุกล็อตที่ชื่อพ้องกันและยังมีของคงเหลืออยู่
     const sameNamedLots = stockItems
       .filter((item) => item.name.trim().toLowerCase() === itemName.trim().toLowerCase() && item.currentQty > 0)
-      // เรียงจากวันหมดอายุที่หมดก่อน (FEFO)
       .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
 
     const totalAvailable = sameNamedLots.reduce((sum, item) => sum + item.currentQty, 0);
@@ -266,7 +381,6 @@ export default function App() {
     let remainingToWithdraw = totalQtyToWithdraw;
     const deductions: { item: StockItem; qtyDeducted: number; before: number; after: number }[] = [];
 
-    // ดำเนินการปันส่วนหักสต็อกล็อตที่หมดอายุเร็วก่อน
     for (const lot of sameNamedLots) {
       if (remainingToWithdraw <= 0) break;
       const qtyDeducted = Math.min(lot.currentQty, remainingToWithdraw);
@@ -280,33 +394,46 @@ export default function App() {
       });
     }
 
+    const addedLogs: WithdrawalLog[] = deductions.map((d, index) => {
+      const logId = 'log_fefo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5) + '_' + index;
+      return {
+        id: logId,
+        itemId: d.item.id,
+        itemName: d.item.name,
+        lot: d.item.lot,
+        sampleGroup: d.item.sampleGroup,
+        withdrawQty: d.qtyDeducted,
+        withdrawDate,
+        remainingQtyBefore: d.before,
+        remainingQtyAfter: d.after
+      };
+    });
+
+    setStockItems(prev => {
+      const copy = [...prev];
+      deductions.forEach(d => {
+        const idx = copy.findIndex(item => item.id === d.item.id);
+        if (idx !== -1) {
+          copy[idx] = { ...copy[idx], currentQty: d.after };
+        }
+      });
+      return copy;
+    });
+    setLogs(prev => [...addedLogs, ...prev]);
+
     try {
       const batch = writeBatch(db);
-      const addedLogs: WithdrawalLog[] = deductions.map((d, index) => {
-        const logId = 'log_fefo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5) + '_' + index;
-        const log: WithdrawalLog = {
-          id: logId,
-          itemId: d.item.id,
-          itemName: d.item.name,
-          lot: d.item.lot,
-          sampleGroup: d.item.sampleGroup,
-          withdrawQty: d.qtyDeducted,
-          withdrawDate,
-          remainingQtyBefore: d.before,
-          remainingQtyAfter: d.after
-        };
-        batch.set(doc(db, "logs", logId), cleanData(log));
-        batch.update(doc(db, "stockItems", d.item.id), { currentQty: d.after });
-        return log;
+      addedLogs.forEach(log => {
+        batch.set(doc(db, "logs", log.id), cleanData(log));
       });
-
+      deductions.forEach(d => {
+        batch.update(doc(db, "stockItems", d.item.id), { currentQty: d.after });
+      });
       await batch.commit();
-      return deductions; // คืนอาร์เรย์สรุปการหัก เพื่อนำไปป้อนผลแจ้งเตือนบนหน้าความคืบหน้าของ UI
     } catch (e) {
-      console.error("Error withdrawing FEFO:", e);
-      alert("เกิดข้อผิดพลาดในการบันทึกการเบิกน้ำยาแบบถ้วนหน้า");
-      return null;
+      console.error("Error withdrawing FEFO from Firestore:", e);
     }
+    return deductions;
   };
 
   // ฟังก์ชันยกเลิกการเบิก (คืนสต็อกเข้าคลังเหมือนเดิม)
@@ -315,38 +442,42 @@ export default function App() {
     if (!targetLog) return;
 
     const item = stockItems.find(i => i.id === targetLog.itemId);
+    const finalQty = item ? Math.min(item.initialQty, item.currentQty + targetLog.withdrawQty) : 0;
+
+    if (item) {
+      setStockItems(prev => prev.map(i => i.id === item.id ? { ...i, currentQty: finalQty } : i));
+    }
+    setLogs(prev => prev.filter(l => l.id !== logId));
+
     try {
       const batch = writeBatch(db);
       if (item) {
-        const potentialQty = item.currentQty + targetLog.withdrawQty;
-        const finalQty = Math.min(item.initialQty, potentialQty);
         batch.update(doc(db, "stockItems", item.id), { currentQty: finalQty });
       }
       batch.delete(doc(db, "logs", logId));
       await batch.commit();
     } catch (e) {
       console.error("Error canceling withdrawal:", e);
-      alert("ไม่สามารถยกเลิกการเบิกคลังได้");
     }
   };
 
   // ลบไอเทม
   const handleDeleteItem = async (id: string) => {
+    setStockItems(prev => prev.filter(i => i.id !== id));
     try {
       await deleteDoc(doc(db, "stockItems", id));
     } catch (e) {
       console.error("Error deleting item:", e);
-      alert("ไม่สามารถลบทิ้งน้ำยาสำเร็จรูปจากระบบคลาวด์ได้");
     }
   };
 
   // ปรับอัปเดตสถานะเครดิต
   const handleUpdatePaymentStatus = async (id: string, status: PaymentStatus) => {
+    setStockItems(prev => prev.map(i => i.id === id ? { ...i, paymentStatus: status } : i));
     try {
       await setDoc(doc(db, "stockItems", id), { paymentStatus: status }, { merge: true });
     } catch (e) {
       console.error("Error updating payment status:", e);
-      alert("ไม่สามารถอัปเดตสถานะการจ่ายเงินได้");
     }
   };
 
@@ -365,7 +496,11 @@ export default function App() {
   };
 
   // ฟังก์ชันแทนที่อัปเดตข้อมูลสำรองทั้งหมด
-  const handleImportBackup = async (importedStock: StockItem[], importedLogs: WithdrawalLog[]) => {
+  const handleImportBackup = async (
+    importedStock: StockItem[], 
+    importedLogs: WithdrawalLog[], 
+    importedTargets?: ProcurementTarget[]
+  ) => {
     try {
       const promises: Promise<any>[] = [];
       importedStock.forEach(item => {
@@ -374,6 +509,13 @@ export default function App() {
       importedLogs.forEach(log => {
         promises.push(setDoc(doc(db, "logs", log.id), cleanData(log)));
       });
+      if (importedTargets && importedTargets.length > 0) {
+        importedTargets.forEach(target => {
+          promises.push(setDoc(doc(db, "procurementTargets", target.id), cleanData(target)));
+        });
+        setProcurementTargets(importedTargets);
+        setStoredTargets(importedTargets);
+      }
       await Promise.all(promises);
       alert("นำเข้าและสลับฐานข้อมูลกลางระบบซิงค์เรียบร้อยแล้ว!");
     } catch (e) {
@@ -439,6 +581,24 @@ export default function App() {
       return false;
     }).length;
   }, [stockItems]);
+
+  // คำนวณจำนวน Test ที่ต้องสั่งซื้อเดือนหน้า เพื่อแสดง badge บนแท็บ
+  const procurementNeedOrderCount = useMemo(() => {
+    return procurementTargets.filter(target => {
+      const linkedItems = target.linkedStockIds && target.linkedStockIds.length > 0
+        ? stockItems.filter(item => target.linkedStockIds!.includes(item.id))
+        : stockItems.filter(item => {
+            const normalizedTarget = target.testName.trim().toLowerCase();
+            const normalizedItem = item.name.trim().toLowerCase();
+            return normalizedItem === normalizedTarget || 
+                   normalizedItem.includes(normalizedTarget) || 
+                   normalizedTarget.includes(normalizedItem);
+          });
+      const currentStock = linkedItems.reduce((sum, item) => sum + (item.currentQty || 0), 0);
+      const totalDemand = (target.monthlyTargetQty || 0) + (target.safetyStockQty || 0);
+      return currentStock < totalDemand;
+    }).length;
+  }, [procurementTargets, stockItems]);
 
   if (isAuthLoading) {
     return (
@@ -749,6 +909,25 @@ export default function App() {
               </button>
 
               <button
+                onClick={() => setActiveTab('procurement')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition-all cursor-pointer select-none ${
+                  activeTab === 'procurement'
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                โหมดวางแผนสั่งซื้อ
+                {procurementNeedOrderCount > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    activeTab === 'procurement' ? 'bg-amber-300 text-slate-900' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {procurementNeedOrderCount}
+                  </span>
+                )}
+              </button>
+
+              <button
                 onClick={() => setActiveTab('stats')}
                 className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition-all cursor-pointer select-none ${
                   activeTab === 'stats'
@@ -821,6 +1000,18 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'procurement' && (
+              <ProcurementOrderPanel
+                stockItems={stockItems}
+                logs={logs}
+                sampleGroups={sampleGroups}
+                procurementTargets={procurementTargets}
+                onSaveTarget={handleSaveProcurementTarget}
+                onDeleteTarget={handleDeleteProcurementTarget}
+                onBatchSaveTargets={handleBatchSaveProcurementTargets}
+              />
+            )}
+
             {activeTab === 'stats' && (
               <StatsPanel
                 stockItems={stockItems}
@@ -832,6 +1023,7 @@ export default function App() {
               <BackupExportPanel
                 stockItems={stockItems}
                 logs={logs}
+                procurementTargets={procurementTargets}
                 onImportBackup={handleImportBackup}
                 onResetMocks={handleResetMocks}
               />

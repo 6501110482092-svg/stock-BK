@@ -1,4 +1,4 @@
-import { StockItem, WithdrawalLog } from './types';
+import { StockItem, WithdrawalLog, ProcurementTarget } from './types';
 
 // พ่วงข้อมูลเริ่มต้น (Mock Data) สำหรับเปิดใช้งานครั้งแรกอย่างรวดเร็ว
 export const INITIAL_STOCK: StockItem[] = [
@@ -239,4 +239,73 @@ export const getAlertLevel = (currentQty: number, thresholds: StockItem['thresho
     borderClass: 'border-sky-200',
     textText: `ปานกลาง (${currentQty} ชุด)`
   };
+};
+
+export const INITIAL_PROCUREMENT_TARGETS: ProcurementTarget[] = [
+  {
+    id: 'target-1',
+    testName: 'Anti-A Reagent (ชุดตรวจหมู่เลือดน้ำยาตรวจ)',
+    sampleGroup: 'Immunology & Blood Bank',
+    monthlyTargetQty: 50,
+    safetyStockQty: 5,
+    unitName: 'ชุด',
+    packSize: 10,
+    estimatedPricePerUnit: 250,
+    supplier: 'BioLab Supply Thailand',
+    notes: 'เก็บที่อุณหภูมิ 2-8°C สั่งล่วงหน้า 5 วันทำการ'
+  },
+  {
+    id: 'target-2',
+    testName: 'Urine Strip 10 Parameters (แถบตรวจปัสสาวะ)',
+    sampleGroup: 'Clinical Microscopy',
+    monthlyTargetQty: 100,
+    safetyStockQty: 10,
+    unitName: 'แถบ/ชุด',
+    packSize: 100,
+    estimatedPricePerUnit: 80,
+    supplier: 'MedDiagnostic Co.',
+    notes: 'กล่องละ 100 แผ่น ห้ามโดนแสง'
+  },
+  {
+    id: 'target-3',
+    testName: 'HBsAg Rapid Test Kit (ชุดตรวจไวรัสตับอักเสบบี)',
+    sampleGroup: 'Serology',
+    monthlyTargetQty: 40,
+    safetyStockQty: 5,
+    unitName: 'ชุดทดสอบ',
+    packSize: 25,
+    estimatedPricePerUnit: 125,
+    supplier: 'Global Health Care',
+    notes: 'ชุดตรวจแบบตลับ 25 ตลับ/กล่อง'
+  },
+  {
+    id: 'target-4',
+    testName: 'CBC Diluent / Isotonac (น้ำยาเตรียมสไลด์และนับเม็ดเลือด)',
+    sampleGroup: 'Hematology',
+    monthlyTargetQty: 12,
+    safetyStockQty: 2,
+    unitName: 'ถัง (20L)',
+    packSize: 1,
+    estimatedPricePerUnit: 1500,
+    supplier: 'Sysmed Instruments',
+    notes: 'ถัง 20 ลิตร สำหรับเครื่องนับเม็ดเลือดอัตโนมัติ'
+  }
+];
+
+export const getStoredTargets = (): ProcurementTarget[] => {
+  if (typeof window === 'undefined') return INITIAL_PROCUREMENT_TARGETS;
+  const stored = localStorage.getItem('clinic_procurement_targets');
+  if (!stored) {
+    localStorage.setItem('clinic_procurement_targets', JSON.stringify(INITIAL_PROCUREMENT_TARGETS));
+    return INITIAL_PROCUREMENT_TARGETS;
+  }
+  try {
+    return JSON.parse(stored);
+  } catch (e) {
+    return INITIAL_PROCUREMENT_TARGETS;
+  }
+};
+
+export const setStoredTargets = (targets: ProcurementTarget[]) => {
+  localStorage.setItem('clinic_procurement_targets', JSON.stringify(targets));
 };

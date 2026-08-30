@@ -37,3 +37,18 @@ export interface WithdrawalLog {
   remainingQtyBefore: number; // คงเหลือการเบิกล่าสุด
   remainingQtyAfter: number;  // คงเหลือการเบิกหลังหักออก
 }
+
+export interface ProcurementTarget {
+  id: string;                 // รหัสอ้างอิงเป้าหมายสั่งซื้อ
+  testName: string;           // ชื่อ Test / ชื่อน้ำยาตรวจวิเคราะห์
+  sampleGroup: string;        // กลุ่มงานทางแล็บ (เช่น Immunology, Hematology, Clinical Chem)
+  monthlyTargetQty: number;   // ปริมาณที่ต้องการใช้ต่อเดือน (ชุด/Test)
+  safetyStockQty: number;     // สต็อกสำรองความปลอดภัย (Safety Stock)
+  unitName: string;           // หน่วยนับ เช่น ชุด, กล่อง, แถบ, ขวด, Test
+  packSize: number;           // ขนาดบรรจุต่อกล่อง (เช่น 25 ชุด/กล่อง)
+  estimatedPricePerUnit: number; // ราคาต่อหน่วยโดยประมาณ (บาท)
+  supplier?: string;          // บริษัทผู้ผลิต / ตัวแทนจำหน่าย
+  linkedStockIds?: string[];  // รายการสต็อก (StockItem ID) ที่ถูกเลือกผูกรวมเข้ามาใน Test นี้
+  notes?: string;             // หมายเหตุการจัดซื้อ
+  updatedAt?: string;         // เวลาอัปเดตล่าสุด
+}

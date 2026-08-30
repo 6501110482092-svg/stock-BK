@@ -1,26 +1,34 @@
 import React, { useRef, useState } from 'react';
 import { Download, Upload, RefreshCcw, Database, FileCode, Check } from 'lucide-react';
-import { StockItem, WithdrawalLog } from '../types';
-import { INITIAL_STOCK, INITIAL_LOGS } from '../utils';
+import { StockItem, WithdrawalLog, ProcurementTarget } from '../types';
+import { INITIAL_STOCK, INITIAL_LOGS, INITIAL_PROCUREMENT_TARGETS } from '../utils';
 
 interface BackupExportPanelProps {
   stockItems: StockItem[];
   logs: WithdrawalLog[];
-  onImportBackup: (importedStock: StockItem[], importedLogs: WithdrawalLog[]) => void;
+  procurementTargets?: ProcurementTarget[];
+  onImportBackup: (importedStock: StockItem[], importedLogs: WithdrawalLog[], importedTargets?: ProcurementTarget[]) => void;
   onResetMocks: () => void;
 }
 
-export default function BackupExportPanel({ stockItems, logs, onImportBackup, onResetMocks }: BackupExportPanelProps) {
+export default function BackupExportPanel({ 
+  stockItems, 
+  logs, 
+  procurementTargets = [], 
+  onImportBackup, 
+  onResetMocks 
+}: BackupExportPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
   const handleExport = () => {
     const backupData = {
       app: 'MedicalTechnologyClinicalStockSystem',
-      exportVersion: '1.0',
+      exportVersion: '1.2',
       exportDate: new Date().toISOString(),
       stockItems,
-      logs
+      logs,
+      procurementTargets
     };
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -36,7 +44,7 @@ export default function BackupExportPanel({ stockItems, logs, onImportBackup, on
     downloadAnchor.click();
     downloadAnchor.remove();
 
-    showToast('💾 ส่งออกข้อมูลสำรองสำเร็จ! ดาวน์โหลดไฟล์ของคุณเรียบร้อย');
+    showToast('💾 ส่งออกข้อมูลสำรองสำเร็จ! รวมรายการคลัง, ประวัติการเบิก, และแผนการสั่งซื้อเรียบร้อย');
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,7 +60,11 @@ export default function BackupExportPanel({ stockItems, logs, onImportBackup, on
           Array.isArray(jsonContent.stockItems) &&
           Array.isArray(jsonContent.logs)
         ) {
-          onImportBackup(jsonContent.stockItems, jsonContent.logs);
+          onImportBackup(
+            jsonContent.stockItems, 
+            jsonContent.logs, 
+            Array.isArray(jsonContent.procurementTargets) ? jsonContent.procurementTargets : undefined
+          );
           showToast('⚡ นำเข้าชุดข้อมูลสำรองในห้องปฏิบัติการเรียบร้อย!');
         } else {
           alert('รูปแบบไฟล์ข้อมูลสำรองไม่ถูกต้อง เกณฑ์ข้อมูลไม่ครบถ้วน');

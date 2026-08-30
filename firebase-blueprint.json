@@ -38,6 +38,24 @@
         "remainingQtyBefore": { "type": "number" },
         "remainingQtyAfter": { "type": "number" }
       }
+    },
+    "ProcurementTarget": {
+      "title": "ProcurementTarget",
+      "description": "Monthly procurement targets and test consolidation rules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "testName": { "type": "string" },
+        "sampleGroup": { "type": "string" },
+        "monthlyTargetQty": { "type": "number" },
+        "safetyStockQty": { "type": "number" },
+        "unitName": { "type": "string" },
+        "packSize": { "type": "number" },
+        "estimatedPricePerUnit": { "type": "number" },
+        "supplier": { "type": "string" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -48,6 +66,10 @@
     "/logs/{id}": {
       "schema": "WithdrawalLog",
       "description": "Log documents of item withdrawals"
+    },
+    "/procurementTargets/{id}": {
+      "schema": "ProcurementTarget",
+      "description": "Target monthly procurement plans by test"
     }
   }
 }
