@@ -418,6 +418,251 @@ export default function ProcurementOrderPanel({
     showToast('📊 ดาวน์โหลดไฟล์ Excel/CSV สำเร็จแล้ว!');
   };
 
+  // พิมพ์เอกสาร PO ผ่าน Iframe ปลอดภัย ไม่เกิดหน้าเปล่าและไม่ซ้ำซ้อน
+  const handlePrintPODocument = () => {
+    const printDoc = document.getElementById('po-printable-sheet');
+    if (!printDoc) {
+      window.print();
+      return;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title></title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm 12mm 10mm 12mm;
+            }
+            *, *::before, *::after {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
+            html, body {
+              font-family: "Sarabun", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              color: #000000;
+              background: #ffffff;
+              font-size: 10pt;
+              line-height: 1.4;
+              padding: 0;
+              margin: 0;
+              height: auto;
+            }
+            .header-box {
+              text-align: center;
+              border-bottom: 2px solid #0f172a;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
+            }
+            .header-box h2 {
+              font-size: 14pt;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 3px;
+            }
+            .header-box h3 {
+              font-size: 11pt;
+              font-weight: 600;
+              color: #334155;
+              margin-bottom: 8px;
+            }
+            .meta-flex {
+              display: flex;
+              justify-content: space-between;
+              font-size: 9pt;
+              color: #64748b;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 10px;
+              margin-bottom: 16px;
+              font-size: 9pt;
+            }
+            th, td {
+              border: 1px solid #475569;
+              padding: 5px 6px;
+            }
+            th {
+              background-color: #f1f5f9;
+              font-weight: 700;
+              text-align: center;
+              color: #0f172a;
+            }
+            tr {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .text-center { text-align: center; }
+            .text-left { text-align: left; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: 700; }
+            .font-semibold { font-weight: 600; }
+            .signatures-grid {
+              display: flex;
+              justify-content: space-between;
+              margin-top: 24px;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              text-align: center;
+              font-size: 9pt;
+            }
+            .sig-col {
+              width: 31%;
+            }
+            .sig-col p.role {
+              font-weight: 600;
+              color: #334155;
+              margin-bottom: 28px;
+            }
+            .sig-line {
+              border-bottom: 1px dotted #94a3b8;
+              width: 80%;
+              margin: 0 auto 4px auto;
+            }
+            .sig-name {
+              font-size: 8.5pt;
+              color: #64748b;
+            }
+            .sig-date {
+              font-size: 8pt;
+              color: #94a3b8;
+              margin-top: 2px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-box">
+            <h2>ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ</h2>
+            <h3>BK Lab Plus</h3>
+            <div class="meta-flex">
+              <span>เลขที่เอกสาร: PO-${new Date().getFullYear() + 543}-${String(new Date().getMonth() + 1).padStart(2, '0')}-001</span>
+              <span>วันที่จัดทำ: ${formatThaiDate(new Date().toISOString())}</span>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 35px;">ลำดับ</th>
+                <th style="text-align: left;">รายการ Test / น้ำยาตรวจ</th>
+                <th>กลุ่มงาน</th>
+                <th>เป้าหมาย/ด.</th>
+                <th>คงเหลือ</th>
+                <th>จำนวนขอซื้อ</th>
+                <th>หน่วยนับ</th>
+                <th style="text-align: right;">ราคา/หน่วย (฿)</th>
+                <th style="text-align: right;">รวมเงิน (฿)</th>
+                <th style="text-align: left;">ผู้จัดจำหน่าย</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${aggregatedData.filter(d => d.actualOrderQty > 0).map((item, idx) => `
+                <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                  <td class="text-center font-bold">${idx + 1}</td>
+                  <td class="font-semibold">${item.target.testName}</td>
+                  <td class="text-center">${item.target.sampleGroup}</td>
+                  <td class="text-center">${item.target.monthlyTargetQty}</td>
+                  <td class="text-center">${item.currentStock}</td>
+                  <td class="text-center font-bold" style="color: #4338ca;">${item.actualOrderQty}</td>
+                  <td class="text-center">${item.target.unitName}</td>
+                  <td class="text-right">${item.pricePerUnit.toLocaleString()}</td>
+                  <td class="text-right font-bold">${item.estimatedCost.toLocaleString()}</td>
+                  <td class="text-left" style="color: #475569;">${item.target.supplier || '-'}</td>
+                </tr>
+              `).join('')}
+              ${aggregatedData.filter(d => d.actualOrderQty > 0).length === 0 ? `
+                <tr>
+                  <td colspan="10" class="text-center" style="padding: 16px; color: #94a3b8;">
+                    ไม่มีรายการที่ต้องสั่งซื้อ (สต็อกปัจจุบันเพียงพอทุกรายการ)
+                  </td>
+                </tr>
+              ` : ''}
+            </tbody>
+            <tfoot>
+              <tr style="background-color: #f1f5f9; font-weight: bold;">
+                <td colspan="5" class="text-right">
+                  รวมทั้งสิ้น (${aggregatedData.filter(d => d.actualOrderQty > 0).length} รายการ):
+                </td>
+                <td class="text-center font-bold" style="color: #4338ca;">
+                  ${kpis.totalUnitsToOrder.toLocaleString()}
+                </td>
+                <td class="text-center">หน่วย</td>
+                <td class="text-right">งบประมาณรวม:</td>
+                <td class="text-right font-bold">
+                  ฿${kpis.totalEstimatedBudget.toLocaleString()}
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="signatures-grid">
+            <div class="sig-col">
+              <p class="role">ผู้จัดทำคำขอซื้อ (นักเทคนิคการแพทย์)</p>
+              <div>
+                <p class="sig-line"></p>
+                <p class="sig-name">(.........................................................)</p>
+                <p class="sig-date">วันที่ ......../......../............</p>
+              </div>
+            </div>
+
+            <div class="sig-col">
+              <p class="role">ผู้ตรวจสอบความต้องการคลัง</p>
+              <div>
+                <p class="sig-line"></p>
+                <p class="sig-name">(.........................................................)</p>
+                <p class="sig-date">วันที่ ......../......../............</p>
+              </div>
+            </div>
+
+            <div class="sig-col">
+              <p class="role">ผู้อนุมัติการจัดซื้อ (หัวหน้าห้องปฏิบัติการ)</p>
+              <div>
+                <p class="sig-line"></p>
+                <p class="sig-name">(.........................................................)</p>
+                <p class="sig-date">วันที่ ......../......../............</p>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 2000);
+    }, 200);
+  };
+
   return (
     <div className="space-y-6">
       
@@ -1310,7 +1555,7 @@ export default function ProcurementOrderPanel({
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => window.print()}
+                    onClick={handlePrintPODocument}
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <Printer className="w-3.5 h-3.5" />
