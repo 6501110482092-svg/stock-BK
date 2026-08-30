@@ -324,13 +324,50 @@ export default function App() {
     return Array.from(new Set(groups)).filter(Boolean);
   }, [stockItems]);
 
-  // ฟังก์ชันเพิ่มสต็อกใหม่
-  const handleAddItem = async (newItem: StockItem) => {
+  // ฟังก์ชันเพิ่มสต็อกใหม่ พร้อมเชื่อมโยงเข้าแผนสั่งซื้ออัตโนมัติ
+  const handleAddItem = async (newItem: StockItem, targetIdToLink?: string) => {
     setStockItems(prev => [newItem, ...prev.filter(i => i.id !== newItem.id)]);
     try {
       await setDoc(doc(db, "stockItems", newItem.id), cleanData(newItem));
     } catch (e) {
       console.error("Error adding item to Firestore:", e);
+    }
+
+    // เชื่อมโยงเข้าแผนสั่งซื้อ (Procurement Target) อัตโนมัติ เพื่อให้เข้าไปอยู่ในแผนทันที ไม่ต้องมากดเลือกสต็อกใหม่
+    try {
+      const targetToUpdate = targetIdToLink 
+        ? procurementTargets.find(t => t.id === targetIdToLink)
+        : procurementTargets.find(t => {
+            const normalizedTarget = t.testName.trim().toLowerCase();
+            const normalizedItem = newItem.name.trim().toLowerCase();
+            return normalizedItem === normalizedTarget || 
+                   normalizedItem.includes(normalizedTarget) || 
+                   normalizedTarget.includes(normalizedItem);
+          });
+
+      if (targetToUpdate) {
+        // ดึงรายการไอเทมเดิมที่เคยผูกไว้ ถ้าไม่มี ให้หาจากสต็อกเดิมที่ชื่อตรงกัน
+        const currentLinked = targetToUpdate.linkedStockIds && targetToUpdate.linkedStockIds.length > 0
+          ? targetToUpdate.linkedStockIds
+          : stockItems.filter(s => {
+              const normalizedTarget = targetToUpdate.testName.trim().toLowerCase();
+              const normalizedStock = s.name.trim().toLowerCase();
+              return normalizedStock === normalizedTarget || 
+                     normalizedStock.includes(normalizedTarget) || 
+                     normalizedTarget.includes(normalizedStock);
+            }).map(s => s.id);
+
+        const updatedLinkedIds = Array.from(new Set([...currentLinked, newItem.id]));
+        const updatedTarget: ProcurementTarget = {
+          ...targetToUpdate,
+          linkedStockIds: updatedLinkedIds,
+          updatedAt: new Date().toISOString()
+        };
+
+        handleSaveProcurementTarget(updatedTarget);
+      }
+    } catch (err) {
+      console.error("Error auto-linking new stock to procurement target:", err);
     }
   };
 
@@ -991,6 +1028,7 @@ export default function App() {
                 onAddItem={handleAddItem}
                 sampleGroups={sampleGroups}
                 stockItems={stockItems}
+                procurementTargets={procurementTargets}
               />
             )}
 

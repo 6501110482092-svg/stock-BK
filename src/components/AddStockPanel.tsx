@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { PlusCircle, DollarSign, Calendar, ShieldAlert, CheckCircle, Sparkles, Layers } from 'lucide-react';
-import { StockItem, PaymentType } from '../types';
+import { PlusCircle, DollarSign, Calendar, ShieldAlert, CheckCircle, Sparkles, Layers, Target, ClipboardList, X, Check } from 'lucide-react';
+import { StockItem, PaymentType, ProcurementTarget } from '../types';
 
 interface AddStockPanelProps {
-  onAddItem: (newItem: StockItem) => void;
+  onAddItem: (newItem: StockItem, targetIdToLink?: string) => void;
   sampleGroups: string[];
   stockItems: StockItem[];
+  procurementTargets?: ProcurementTarget[];
 }
 
-export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: AddStockPanelProps) {
+export default function AddStockPanel({ onAddItem, sampleGroups, stockItems, procurementTargets = [] }: AddStockPanelProps) {
   // ฟอร์มสเตต
+  const [selectedTargetId, setSelectedTargetId] = useState<string>('');
   const [name, setName] = useState('');
   const [sampleGroup, setSampleGroup] = useState('');
   const [customSampleGroup, setCustomSampleGroup] = useState('');
@@ -37,6 +39,17 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
     return Array.from(new Set(stockItems.map(item => item.name))).filter(Boolean);
   }, [stockItems]);
 
+  // ค้นหา ProcurementTarget ที่ถูกเลือก หรือที่ชื่อตรงกัน
+  const selectedProcurementTarget = useMemo(() => {
+    if (selectedTargetId) {
+      return procurementTargets.find(t => t.id === selectedTargetId) || null;
+    }
+    if (name.trim()) {
+      return procurementTargets.find(t => t.testName.trim().toLowerCase() === name.trim().toLowerCase()) || null;
+    }
+    return null;
+  }, [selectedTargetId, name, procurementTargets]);
+
   // รายการหน่วยนับเริ่มต้นและที่เคยบันทึกไว้ในระบบ/คลัง
   const availableUnits = useMemo(() => {
     const defaultUnits = ['ชุด', 'ชิ้น', 'test', 'กล่อง', 'ขวด', 'หลอด', 'แผ่น', 'แกลลอน', 'vial', 'strip'];
@@ -50,8 +63,9 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
       console.error(e);
     }
     const stockUnits = stockItems.map(item => item.unit).filter(Boolean) as string[];
-    return Array.from(new Set([...defaultUnits, ...stockUnits, ...localUnits])).filter(Boolean);
-  }, [stockItems]);
+    const targetUnits = procurementTargets.map(item => item.unitName).filter(Boolean) as string[];
+    return Array.from(new Set([...defaultUnits, ...stockUnits, ...targetUnits, ...localUnits])).filter(Boolean);
+  }, [stockItems, procurementTargets]);
   
   // การจ่ายเงิน
   const [paymentType, setPaymentType] = useState<PaymentType>('cash');
@@ -66,6 +80,50 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
   // สถานะหลังจากบันทึก
   const [showSuccess, setShowSuccess] = useState(false);
   const [savedItemName, setSavedItemName] = useState('');
+
+  // ฟังก์ชันเลือก Test จากแผนการสั่งซื้อ
+  const handleSelectProcurementTarget = (targetId: string) => {
+    setSelectedTargetId(targetId);
+    if (!targetId) return;
+
+    const target = procurementTargets.find(t => t.id === targetId);
+    if (target) {
+      setName(target.testName);
+      
+      // ตั้งค่ากลุ่มงาน
+      if (sampleGroups.includes(target.sampleGroup)) {
+        setSampleGroup(target.sampleGroup);
+        setCustomSampleGroup('');
+      } else {
+        setSampleGroup('custom');
+        setCustomSampleGroup(target.sampleGroup);
+      }
+
+      // ตั้งค่าหน่วยนับ
+      if (target.unitName) {
+        if (availableUnits.includes(target.unitName)) {
+          setUnit(target.unitName);
+          setCustomUnit('');
+        } else {
+          setUnit('custom');
+          setCustomUnit(target.unitName);
+        }
+      }
+
+      // ปรับเกณฑ์สีเริ่มต้นตามเป้าหมายแผน (เช่น critical = 20% ของ safety stock)
+      if (target.safetyStockQty > 0) {
+        setUseThresholds(true);
+        setCriticalQty(Math.max(1, Math.round(target.safetyStockQty * 0.5)));
+        setLowQty(Math.max(2, target.safetyStockQty));
+        setHighQty(Math.max(5, target.safetyStockQty + Math.round(target.monthlyTargetQty * 0.5)));
+      }
+
+      // หากมีราคาประเมินต่อหน่วย
+      if (target.estimatedPricePerUnit > 0 && initialQty && (!totalPrice || totalPrice === 0)) {
+        setTotalPrice(Number(initialQty) * target.estimatedPricePerUnit);
+      }
+    }
+  };
 
   // คำนวณราคาต่อชุดอัตโนมัติเมื่อจำนวนหรือราคารวมเปลี่ยน
   useEffect(() => {
@@ -186,11 +244,14 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
       createdAt: new Date().toISOString(),
     };
 
-    onAddItem(newItem);
+    // ส่ง targetId เพื่อให้ระบบผูกเข้ากับ ProcurementTarget อัตโนมัติ
+    const targetIdToLink = selectedTargetId || (selectedProcurementTarget ? selectedProcurementTarget.id : undefined);
+    onAddItem(newItem, targetIdToLink);
     setSavedItemName(newItem.name);
     setShowSuccess(true);
 
     // รีเซ็ตฟอร์ม
+    setSelectedTargetId('');
     setName('');
     setLot('');
     setExpiryDate('');
@@ -217,7 +278,7 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
             โหมดเพิ่มสต็อกน้ำยาและอุปกรณ์คลินิก
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            ระบบจดบันทึกสารเคมี น้ำยา ชุดตรวจ หรือวัสดุสิ้นเปลืองทางการแพทย์เข้าสู่คลังแล็บ
+            ระบบจดบันทึกสารเคมี น้ำยา ชุดตรวจ หรือวัสดุสิ้นเปลืองทางการแพทย์เข้าสู่คลังแล็บ พร้อมเชื่อมต่อแผนการสั่งซื้อ
           </p>
         </div>
       </div>
@@ -231,12 +292,115 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems }: A
         >
           <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-600" />
           <div className="text-sm">
-            <span className="font-semibold">บันทึกสำเร็จ!</span> เพิ่มน้ำยา <span className="font-mono underline">{savedItemName}</span> เข้าคลังเรียบร้อยแล้ว
+            <span className="font-semibold">บันทึกสำเร็จ!</span> เพิ่มน้ำยา <span className="font-mono underline">{savedItemName}</span> เข้าคลังและเชื่อมโยงเข้าแผนการสั่งซื้อเรียบร้อยแล้ว
           </div>
         </motion.div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* ส่วนที่เลือกจากแผนการสั่งซื้อ (Procurement Targets) */}
+        {procurementTargets.length > 0 && (
+          <div className="bg-gradient-to-r from-teal-50/80 via-indigo-50/40 to-teal-50/80 dark:from-slate-800/80 dark:via-slate-800/50 dark:to-slate-800/80 p-4 rounded-2xl border border-teal-200/80 dark:border-slate-700 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-teal-600 text-white rounded-lg shadow-xs">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    🎯 เลือกจากรายการ Test ในแผนสั่งซื้อ (Procurement Targets)
+                  </span>
+                  <span className="block text-[10.5px] text-slate-500 dark:text-slate-400">
+                    เมื่อเลือกแล้ว สต็อกล็อตนี้จะถูกบรรจุเข้าแผนสั่งซื้ออัตโนมัติทันที ไม่ต้องมากดเลือกสต็อกใหม่ในแผน
+                  </span>
+                </div>
+              </div>
+
+              {selectedTargetId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTargetId('');
+                  }}
+                  className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg border border-rose-100 dark:border-rose-900 flex items-center gap-1 self-start sm:self-auto cursor-pointer transition-all"
+                >
+                  <X className="w-3.5 h-3.5" /> ล้างการเลือก
+                </button>
+              )}
+            </div>
+
+            {/* เมนู Dropdown เลือก Test */}
+            <div className="relative">
+              <select
+                value={selectedTargetId}
+                onChange={(e) => handleSelectProcurementTarget(e.target.value)}
+                className="w-full pl-3 pr-8 py-2.5 text-xs font-medium rounded-xl border border-teal-200 dark:border-teal-900/60 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 shadow-xs cursor-pointer"
+              >
+                <option value="">-- คลิกเลือกชื่อ Test ที่มีในแผนสั่งซื้อ ({procurementTargets.length} รายการ) --</option>
+                {procurementTargets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    🎯 {target.testName} ➜ [{target.sampleGroup} | หน่วย: {target.unitName || 'ชุด'} | เป้าหมาย: {target.monthlyTargetQty} {target.unitName || 'ชุด'}/ด.]
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quick Chips ของ Test ในแผนสั่งซื้อ */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1">
+                <ClipboardList className="w-3 h-3 text-teal-600" /> แนะนำด่วน:
+              </span>
+              {procurementTargets.slice(0, 10).map((target) => {
+                const isSelected = selectedTargetId === target.id || (name.trim().toLowerCase() === target.testName.trim().toLowerCase());
+                return (
+                  <button
+                    key={target.id}
+                    type="button"
+                    onClick={() => handleSelectProcurementTarget(target.id)}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 border cursor-pointer ${
+                      isSelected
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400 hover:text-teal-600 dark:hover:text-teal-300'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3 h-3" />}
+                    {target.testName}
+                    <span className={`text-[9px] px-1 py-0.2 rounded font-normal ${isSelected ? 'bg-teal-700 text-teal-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                      {target.unitName || 'ชุด'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* แถบยืนยันการเชื่อมโยง Test */}
+            {selectedProcurementTarget && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-3 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-300"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                    ✓
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm text-emerald-950 dark:text-emerald-200">
+                      เชื่อมโยงกับแผนสั่งซื้อ: {selectedProcurementTarget.testName}
+                    </span>
+                    <span className="text-[11px] block text-emerald-700 dark:text-emerald-400 mt-0.5">
+                      กลุ่มงาน: <strong className="text-emerald-900 dark:text-emerald-200">{selectedProcurementTarget.sampleGroup}</strong> | หน่วย: <strong className="text-emerald-900 dark:text-emerald-200">{selectedProcurementTarget.unitName || 'ชุด'}</strong> | เป้าหมายรายเดือน: {selectedProcurementTarget.monthlyTargetQty} {selectedProcurementTarget.unitName || 'ชุด'}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-xs whitespace-nowrap">
+                  🔗 เชื่อมเข้าแผนสั่งซื้ออัตโนมัติ
+                </span>
+              </motion.div>
+            )}
+          </div>
+        )}
+
         {/* ส่วนที่ 1: ข้อมูลพื้นฐาน */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="md:col-span-2">
