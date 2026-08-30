@@ -606,7 +606,7 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
             <h4 className="font-extrabold uppercase text-[13px] text-slate-900 mb-1">ข้อมูลสารสนเทศรายงานเบิกจำแนกรายชื่อตรวจ</h4>
             <div>• ชื่อรายการตรวจทดสอบ ({selectedChartTests.length}รายการ): <span className="font-bold text-indigo-700">{selectedChartTests.length > 0 ? selectedChartTests.join(', ') : 'ยังไม่ได้เลือก'}</span></div>
             <div>• สรุปสถิติรอบประจำปี ค.ศ.: <span className="font-bold underline text-indigo-600">{selectedChartYear}</span></div>
-            <div>• จัดพิมพ์โดย: <span className="font-semibold text-slate-700">6501110482092@ptu.ac.th</span> เมื่อ <span className="font-mono text-slate-700">{(() => {
+            <div>• วันที่จัดพิมพ์รายงาน: <span className="font-mono text-slate-700">{(() => {
               const d = new Date();
               const yr = d.getFullYear() + 543; // พ.ศ. 
               const moMonth = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];

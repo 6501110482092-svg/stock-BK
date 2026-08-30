@@ -63,8 +63,8 @@ export default function App() {
   
   // Custom bypass system states
   const [showBypass, setShowBypass] = useState(false);
-  const [bypassEmail, setBypassEmail] = useState('6501110482092@ptu.ac.th');
-  const [bypassName, setBypassName] = useState('เจ้าหน้าที่ PTU');
+  const [bypassEmail, setBypassEmail] = useState('');
+  const [bypassName, setBypassName] = useState('');
 
   // Monitor auth state changes
   useEffect(() => {
@@ -97,12 +97,12 @@ export default function App() {
 
       if (currentUser) {
         if (currentUser.isAnonymous) {
-          const storedEmail = localStorage.getItem("custom_lab_email") || "6501110482092@ptu.ac.th";
-          const storedName = localStorage.getItem("custom_lab_name") || "เจ้าหน้าที่ PTU (แล็บ)";
+          const storedEmail = localStorage.getItem("custom_lab_email") || "";
+          const storedName = localStorage.getItem("custom_lab_name") || "";
           setUser({
             uid: currentUser.uid,
-            email: storedEmail,
-            displayName: storedName,
+            email: storedEmail || "user@lab.local",
+            displayName: storedName || "ผู้ใช้งาน",
             photoURL: null,
             isAnonymous: true
           });
@@ -121,10 +121,12 @@ export default function App() {
         try {
           const anon = await signInUserAnonymously();
           if (anon) {
+            const storedEmail = localStorage.getItem("custom_lab_email") || "";
+            const storedName = localStorage.getItem("custom_lab_name") || "";
             setUser({
               uid: anon.uid,
-              email: "6501110482092@ptu.ac.th",
-              displayName: "เจ้าหน้าที่ PTU",
+              email: storedEmail || "user@lab.local",
+              displayName: storedName || "ผู้ใช้งาน",
               photoURL: null,
               isAnonymous: true
             });
@@ -138,8 +140,8 @@ export default function App() {
         // Fallback default user
         const defaultAppUser: AppUser = {
           uid: "lab_auto_" + Date.now(),
-          email: "6501110482092@ptu.ac.th",
-          displayName: "เจ้าหน้าที่ PTU",
+          email: localStorage.getItem("custom_lab_email") || "user@lab.local",
+          displayName: localStorage.getItem("custom_lab_name") || "ผู้ใช้งาน",
           photoURL: null,
           isAnonymous: true
         };
@@ -706,7 +708,7 @@ export default function App() {
                         type="email"
                         value={bypassEmail}
                         onChange={(e) => setBypassEmail(e.target.value)}
-                        placeholder="ระบุเมล Gmail เจ้าหน้าที่ เช่น 6501110482092@ptu.ac.th"
+                        placeholder="ระบุอีเมลผู้ใช้งาน"
                         className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 text-xs"
                       />
                     </div>
@@ -717,7 +719,7 @@ export default function App() {
                         type="text"
                         value={bypassName}
                         onChange={(e) => setBypassName(e.target.value)}
-                        placeholder="ระบุชื่อเจ้าหน้าที่ประจำเครื่อง เช่น เจ้าหน้าที่ PTU"
+                        placeholder="ระบุชื่อผู้ใช้งาน"
                         className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 text-xs"
                       />
                     </div>
@@ -1024,8 +1026,6 @@ export default function App() {
                 stockItems={stockItems}
                 logs={logs}
                 procurementTargets={procurementTargets}
-                onImportBackup={handleImportBackup}
-                onResetMocks={handleResetMocks}
               />
             )}
           </motion.div>

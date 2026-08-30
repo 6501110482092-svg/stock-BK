@@ -547,11 +547,11 @@ export default function ProcurementOrderPanel({
       <html lang="th">
         <head>
           <meta charset="utf-8" />
-          <title>BK Lab Plus</title>
+          <title></title>
           <style>
             @page {
               size: A4 portrait;
-              margin: 12mm 14mm 12mm 14mm; /* เว้นระยะขอบกระดาษทุกหน้า ไม่ให้ชิดขอบบน */
+              margin: 0mm; /* ลบ URL, วันที่, และเลขหน้าของ Browser ออก */
             }
             *, *::before, *::after {
               box-sizing: border-box;
@@ -571,7 +571,7 @@ export default function ProcurementOrderPanel({
               background: #ffffff;
               font-size: 9.5pt;
               line-height: 1.35;
-              padding: 0;
+              padding: 0 14mm;
               margin: 0;
               width: 100%;
             }
@@ -637,6 +637,7 @@ export default function ProcurementOrderPanel({
               display: flex;
               justify-content: space-between;
               margin-top: 24px;
+              padding-bottom: 12mm;
               page-break-inside: avoid;
               break-inside: avoid;
               text-align: center;
@@ -671,7 +672,7 @@ export default function ProcurementOrderPanel({
             <thead>
               <!-- หัวเอกสารที่จะแสดงซ้ำทุกหน้าที่พิมพ์ ไม่ให้หน้าถัดไปชิดขอบหรือขาดหัวเอกสาร -->
               <tr style="border: none; background: transparent;">
-                <th colspan="10" style="border: none; background: transparent; padding: 0 0 8px 0; text-align: left; font-weight: normal;">
+                <th colspan="10" style="border: none; background: transparent; padding: 12mm 0 8px 0; text-align: left; font-weight: normal;">
                   <div class="header-box">
                     <h2>ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ</h2>
                     <h3>BK Lab Plus</h3>
@@ -1754,6 +1755,11 @@ export default function ProcurementOrderPanel({
                       <X className="w-4 h-4" />
                     </button>
                   </div>
+                </div>
+
+                {/* Banner notice on how to hide URL in print dialog */}
+                <div className="px-4 py-2 bg-amber-50 border-b border-amber-200/70 text-amber-800 text-[11px] flex items-center justify-between gap-2 print:hidden">
+                  <span>💡 <strong>คำแนะนำ:</strong> ในหน้าต่างพิมพ์ (Print Dialog) ให้นำเครื่องหมายถูกออกจากตัวเลือก <strong>&quot;หัวกระดาษและท้ายกระดาษ (Headers and footers)&quot;</strong> เพื่อไม่ให้บราวเซอร์ใส่ลิงก์ URL หรือเวลาลงในกระดาษ</span>
                 </div>
 
                 {/* Printable Content */}
