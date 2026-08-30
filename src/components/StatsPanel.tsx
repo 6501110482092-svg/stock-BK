@@ -366,40 +366,6 @@ export default function StatsPanel({ stockItems, logs }: StatsPanelProps) {
           </div>
         </div>
 
-        {/* CSS สไตล์ลิ่งพิเศษสำหรับการแปลงไฟล์ PDF / การจัดหน้ากระดาษเอสี่ */}
-        <style dangerouslySetInnerHTML={{__html: `
-          @media print {
-            body {
-              background: white !important;
-              color: black !important;
-            }
-            header, footer, nav, .no-print, button, select {
-              display: none !important;
-            }
-            .space-y-8 {
-              margin-top: 0px !important;
-              gap: 15px !important;
-            }
-            /* จัดขอบหน้าพิมพ์ให้สวยงามสำหรับใบรายงานแพทย์ */
-            @page {
-              size: A4 portrait;
-              margin: 15mm 15mm 15mm 15mm;
-            }
-            .print-card {
-              border: 1px solid #cbd5e1 !important;
-              box-shadow: none !important;
-              background: white !important;
-              color: black !important;
-              page-break-inside: avoid !important;
-              border-radius: 12px !important;
-              padding: 16px !important;
-            }
-            .print-text-dark {
-              color: #0f172a !important;
-            }
-          }
-        `}} />
-
         {/* จุดคัดกรองตามแผนกแล็บ */}
         <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80">
           <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
