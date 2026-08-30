@@ -632,7 +632,7 @@ export default function App() {
             ระบบบริหารคลังชุดตรวจและน้ำยาเคมี
           </h1>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-            ห้องปฏิบัติการเทคนิคการแพทย์ คลินิกแล็บความแม่นยำสูง
+            BK Lab Plus
           </p>
           
           <div className="my-6 p-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl text-left">

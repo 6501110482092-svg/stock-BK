@@ -1296,14 +1296,14 @@ export default function ProcurementOrderPanel({
       {/* Modal: Printable PO Form (ใบขออนุมัติสั่งซื้อน้ำยาและเวชภัณฑ์ห้องแล็บ) */}
       <AnimatePresence>
         {isPrintModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs print-po-modal-overlay">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white text-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+              className="bg-white text-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden print-po-modal-container"
             >
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-100">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-100 print-po-modal-header print-hidden">
                 <div className="flex items-center gap-2">
                   <Printer className="w-5 h-5 text-indigo-600" />
                   <span className="font-bold text-sm">ตัวอย่างเอกสารใบขอจัดซื้อน้ำยาแล็บ (Purchase Order Preview)</span>
@@ -1318,7 +1318,7 @@ export default function ProcurementOrderPanel({
                   </button>
                   <button
                     onClick={() => setIsPrintModalOpen(false)}
-                    className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+                    className="p-2 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1326,13 +1326,17 @@ export default function ProcurementOrderPanel({
               </div>
 
               {/* Printable Content */}
-              <div className="p-8 overflow-y-auto flex-1 text-slate-900 font-sans space-y-6 print:p-0">
+              <div className="p-6 md:p-8 overflow-y-auto flex-1 text-slate-900 font-sans space-y-4 print:space-y-3 print:p-0 print-po-paper">
                 
                 {/* Header */}
-                <div className="text-center border-b-2 border-slate-800 pb-4">
-                  <h2 className="text-xl font-bold uppercase tracking-wide">ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ</h2>
-                  <h3 className="text-sm font-semibold text-slate-600 mt-1">ห้องปฏิบัติการเทคนิคการแพทย์ คลินิกแล็บความแม่นยำสูง</h3>
-                  <div className="flex justify-between items-center text-xs text-slate-500 mt-3">
+                <div className="text-center border-b-2 border-slate-800 pb-3 print:pb-2">
+                  <h2 className="text-lg md:text-xl font-bold uppercase tracking-wide print:text-base">
+                    ใบขออนุมัติสั่งซื้อน้ำยาและชุดตรวจวิเคราะห์ทางห้องปฏิบัติการ
+                  </h2>
+                  <h3 className="text-xs md:text-sm font-semibold text-slate-600 mt-0.5 print:text-xs">
+                    BK Lab Plus
+                  </h3>
+                  <div className="flex justify-between items-center text-[11px] text-slate-500 mt-2 print:text-[10px]">
                     <span>เลขที่เอกสาร: PO-{new Date().getFullYear() + 543}-{String(new Date().getMonth() + 1).padStart(2, '0')}-001</span>
                     <span>วันที่จัดทำ: {formatThaiDate(new Date().toISOString())}</span>
                   </div>
@@ -1340,89 +1344,89 @@ export default function ProcurementOrderPanel({
 
                 {/* Table */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse border border-slate-300">
+                  <table className="w-full text-xs print:text-[10px] border-collapse border border-slate-300">
                     <thead>
-                      <tr className="bg-slate-100 text-slate-800 font-bold">
-                        <th className="border border-slate-300 p-2 text-center w-10">ลำดับ</th>
-                        <th className="border border-slate-300 p-2 text-left">รายการ Test / น้ำยาตรวจ</th>
-                        <th className="border border-slate-300 p-2 text-center">กลุ่มงาน</th>
-                        <th className="border border-slate-300 p-2 text-center">เป้าหมาย/เดือน</th>
-                        <th className="border border-slate-300 p-2 text-center">คงเหลือในคลัง</th>
-                        <th className="border border-slate-300 p-2 text-center">จำนวนที่ขอซื้อ</th>
-                        <th className="border border-slate-300 p-2 text-center">หน่วยนับ</th>
-                        <th className="border border-slate-300 p-2 text-right">ราคา/หน่วย (฿)</th>
-                        <th className="border border-slate-300 p-2 text-right">รวมเงิน (฿)</th>
-                        <th className="border border-slate-300 p-2 text-left">ผู้จัดจำหน่าย</th>
+                      <tr className="bg-slate-100 print:bg-slate-200 text-slate-800 font-bold">
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center w-8">ลำดับ</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-left">รายการ Test / น้ำยาตรวจ</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">กลุ่มงาน</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">เป้าหมาย/ด.</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">คงเหลือ</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">จำนวนขอซื้อ</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-center">หน่วยนับ</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-right">ราคา/หน่วย (฿)</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-right">รวมเงิน (฿)</th>
+                        <th className="border border-slate-300 print:border-slate-500 p-1.5 text-left">ผู้จัดจำหน่าย</th>
                       </tr>
                     </thead>
                     <tbody>
                       {aggregatedData.filter(d => d.actualOrderQty > 0).map((item, idx) => (
-                        <tr key={item.target.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                          <td className="border border-slate-300 p-2 text-center font-bold">{idx + 1}</td>
-                          <td className="border border-slate-300 p-2 font-semibold">{item.target.testName}</td>
-                          <td className="border border-slate-300 p-2 text-center">{item.target.sampleGroup}</td>
-                          <td className="border border-slate-300 p-2 text-center">{item.target.monthlyTargetQty}</td>
-                          <td className="border border-slate-300 p-2 text-center">{item.currentStock}</td>
-                          <td className="border border-slate-300 p-2 text-center font-bold text-indigo-700">{item.actualOrderQty}</td>
-                          <td className="border border-slate-300 p-2 text-center">{item.target.unitName}</td>
-                          <td className="border border-slate-300 p-2 text-right">{item.pricePerUnit.toLocaleString()}</td>
-                          <td className="border border-slate-300 p-2 text-right font-bold">{item.estimatedCost.toLocaleString()}</td>
-                          <td className="border border-slate-300 p-2 text-slate-600">{item.target.supplier || '-'}</td>
+                        <tr key={item.target.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 print:bg-white'}>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-bold">{idx + 1}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 font-semibold">{item.target.testName}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.sampleGroup}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.monthlyTargetQty}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.currentStock}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-bold text-indigo-700 print:text-black">{item.actualOrderQty}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">{item.target.unitName}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right">{item.pricePerUnit.toLocaleString()}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right font-bold">{item.estimatedCost.toLocaleString()}</td>
+                          <td className="border border-slate-300 print:border-slate-500 p-1.5 text-slate-600 print:text-black">{item.target.supplier || '-'}</td>
                         </tr>
                       ))}
                       {aggregatedData.filter(d => d.actualOrderQty > 0).length === 0 && (
                         <tr>
-                          <td colSpan={10} className="border border-slate-300 p-6 text-center text-slate-400">
+                          <td colSpan={10} className="border border-slate-300 print:border-slate-500 p-4 text-center text-slate-400">
                             ไม่มีรายการที่ต้องสั่งซื้อ (สต็อกปัจจุบันเพียงพอทุกรายการ)
                           </td>
                         </tr>
                       )}
                     </tbody>
                     <tfoot>
-                      <tr className="bg-slate-100 font-bold text-slate-900">
-                        <td colSpan={5} className="border border-slate-300 p-2 text-right">
+                      <tr className="bg-slate-100 print:bg-slate-200 font-bold text-slate-900">
+                        <td colSpan={5} className="border border-slate-300 print:border-slate-500 p-1.5 text-right">
                           รวมทั้งสิ้น ({aggregatedData.filter(d => d.actualOrderQty > 0).length} รายการ):
                         </td>
-                        <td className="border border-slate-300 p-2 text-center font-black text-indigo-700">
+                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center font-black text-indigo-700 print:text-black">
                           {kpis.totalUnitsToOrder.toLocaleString()}
                         </td>
-                        <td className="border border-slate-300 p-2 text-center">หน่วย</td>
-                        <td className="border border-slate-300 p-2 text-right">งบประมาณรวม:</td>
-                        <td className="border border-slate-300 p-2 text-right font-black text-slate-900">
+                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-center">หน่วย</td>
+                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right">งบประมาณรวม:</td>
+                        <td className="border border-slate-300 print:border-slate-500 p-1.5 text-right font-black text-slate-900">
                           ฿{kpis.totalEstimatedBudget.toLocaleString()}
                         </td>
-                        <td className="border border-slate-300 p-2"></td>
+                        <td className="border border-slate-300 print:border-slate-500 p-1.5"></td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
 
                 {/* Signature Lines */}
-                <div className="grid grid-cols-3 gap-8 pt-10 text-center text-xs">
-                  <div className="space-y-12">
+                <div className="grid grid-cols-3 gap-4 pt-4 print:pt-6 text-center text-xs print:text-[10px] signature-block">
+                  <div className="space-y-6 print:space-y-6">
                     <p className="font-semibold text-slate-700">ผู้จัดทำคำขอซื้อ (นักเทคนิคการแพทย์)</p>
                     <div>
-                      <p className="border-b border-dotted border-slate-400 w-3/4 mx-auto pb-1"></p>
-                      <p className="text-[11px] text-slate-500 mt-1">(.........................................................)</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
+                      <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
+                      <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
+                      <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
                     </div>
                   </div>
 
-                  <div className="space-y-12">
+                  <div className="space-y-6 print:space-y-6">
                     <p className="font-semibold text-slate-700">ผู้ตรวจสอบความต้องการคลัง</p>
                     <div>
-                      <p className="border-b border-dotted border-slate-400 w-3/4 mx-auto pb-1"></p>
-                      <p className="text-[11px] text-slate-500 mt-1">(.........................................................)</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
+                      <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
+                      <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
+                      <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
                     </div>
                   </div>
 
-                  <div className="space-y-12">
+                  <div className="space-y-6 print:space-y-6">
                     <p className="font-semibold text-slate-700">ผู้อนุมัติการจัดซื้อ (หัวหน้าห้องปฏิบัติการ)</p>
                     <div>
-                      <p className="border-b border-dotted border-slate-400 w-3/4 mx-auto pb-1"></p>
-                      <p className="text-[11px] text-slate-500 mt-1">(.........................................................)</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
+                      <p className="border-b border-dotted border-slate-400 w-4/5 mx-auto pb-1"></p>
+                      <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-1">(.........................................................)</p>
+                      <p className="text-[10px] print:text-[9px] text-slate-400 mt-0.5">วันที่ ......../......../............</p>
                     </div>
                   </div>
                 </div>
