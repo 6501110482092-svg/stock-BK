@@ -418,92 +418,102 @@ export default function ProcurementOrderPanel({
     showToast('📊 ดาวน์โหลดไฟล์ Excel/CSV สำเร็จแล้ว!');
   };
 
-  // พิมพ์เอกสาร PO ผ่าน Iframe ปลอดภัย ไม่เกิดหน้าเปล่าและไม่ซ้ำซ้อน
+  // พิมพ์เอกสาร PO ผ่าน Iframe ปลอดภัย ไม่เกิดหน้าเปล่า ไม่ซ้ำซ้อน และตัด URL/หัวกระดาษออก
   const handlePrintPODocument = () => {
-    const printDoc = document.getElementById('po-printable-sheet');
-    if (!printDoc) {
-      window.print();
-      return;
+    // ลบ iframe เก่าหากมี
+    const oldIframe = document.getElementById('po-print-hidden-frame');
+    if (oldIframe) {
+      oldIframe.remove();
     }
 
     const iframe = document.createElement('iframe');
+    iframe.id = 'po-print-hidden-frame';
     iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '-9999px';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
+    iframe.style.border = 'none';
+    iframe.style.opacity = '0';
     document.body.appendChild(iframe);
 
     const doc = iframe.contentWindow?.document;
     if (!doc) {
-      window.print();
       return;
     }
+
+    const rowsToPrint = aggregatedData.filter(d => d.actualOrderQty > 0);
 
     doc.open();
     doc.write(`
       <!DOCTYPE html>
-      <html>
+      <html lang="th">
         <head>
           <meta charset="utf-8" />
-          <title></title>
+          <title>BK Lab Plus</title>
           <style>
             @page {
               size: A4 portrait;
-              margin: 10mm 12mm 10mm 12mm;
+              margin: 0mm; /* ลบ URL, วันที่, และเลขหน้าของ Browser ออก */
             }
             *, *::before, *::after {
               box-sizing: border-box;
               margin: 0;
               padding: 0;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
-            html, body {
+            html {
+              background: #ffffff;
+              margin: 0;
+              padding: 0;
+            }
+            body {
               font-family: "Sarabun", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
               color: #000000;
               background: #ffffff;
-              font-size: 10pt;
-              line-height: 1.4;
-              padding: 0;
+              font-size: 9.5pt;
+              line-height: 1.35;
+              padding: 12mm 14mm 10mm 14mm;
               margin: 0;
-              height: auto;
+              width: 100%;
             }
             .header-box {
               text-align: center;
               border-bottom: 2px solid #0f172a;
-              padding-bottom: 8px;
-              margin-bottom: 12px;
+              padding-bottom: 6px;
+              margin-bottom: 8px;
             }
             .header-box h2 {
-              font-size: 14pt;
+              font-size: 13pt;
               font-weight: 700;
               text-transform: uppercase;
               letter-spacing: 0.5px;
-              margin-bottom: 3px;
+              margin-bottom: 2px;
+              color: #0f172a;
             }
             .header-box h3 {
               font-size: 11pt;
-              font-weight: 600;
-              color: #334155;
-              margin-bottom: 8px;
+              font-weight: 700;
+              color: #1e293b;
+              margin-bottom: 6px;
             }
             .meta-flex {
               display: flex;
               justify-content: space-between;
-              font-size: 9pt;
-              color: #64748b;
+              font-size: 8.5pt;
+              color: #475569;
             }
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 10px;
-              margin-bottom: 16px;
-              font-size: 9pt;
+              margin-top: 8px;
+              margin-bottom: 12px;
+              font-size: 8.5pt;
             }
             th, td {
-              border: 1px solid #475569;
-              padding: 5px 6px;
+              border: 1px solid #64748b;
+              padding: 4px 5px;
             }
             th {
               background-color: #f1f5f9;
@@ -523,19 +533,19 @@ export default function ProcurementOrderPanel({
             .signatures-grid {
               display: flex;
               justify-content: space-between;
-              margin-top: 24px;
+              margin-top: 18px;
               page-break-inside: avoid;
               break-inside: avoid;
               text-align: center;
-              font-size: 9pt;
+              font-size: 8.5pt;
             }
             .sig-col {
               width: 31%;
             }
             .sig-col p.role {
               font-weight: 600;
-              color: #334155;
-              margin-bottom: 28px;
+              color: #1e293b;
+              margin-bottom: 24px;
             }
             .sig-line {
               border-bottom: 1px dotted #94a3b8;
@@ -543,12 +553,12 @@ export default function ProcurementOrderPanel({
               margin: 0 auto 4px auto;
             }
             .sig-name {
-              font-size: 8.5pt;
-              color: #64748b;
+              font-size: 8pt;
+              color: #475569;
             }
             .sig-date {
-              font-size: 8pt;
-              color: #94a3b8;
+              font-size: 7.5pt;
+              color: #64748b;
               margin-top: 2px;
             }
           </style>
@@ -566,7 +576,7 @@ export default function ProcurementOrderPanel({
           <table>
             <thead>
               <tr>
-                <th style="width: 35px;">ลำดับ</th>
+                <th style="width: 32px;">ลำดับ</th>
                 <th style="text-align: left;">รายการ Test / น้ำยาตรวจ</th>
                 <th>กลุ่มงาน</th>
                 <th>เป้าหมาย/ด.</th>
@@ -579,7 +589,7 @@ export default function ProcurementOrderPanel({
               </tr>
             </thead>
             <tbody>
-              ${aggregatedData.filter(d => d.actualOrderQty > 0).map((item, idx) => `
+              ${rowsToPrint.map((item, idx) => `
                 <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
                   <td class="text-center font-bold">${idx + 1}</td>
                   <td class="font-semibold">${item.target.testName}</td>
@@ -593,7 +603,7 @@ export default function ProcurementOrderPanel({
                   <td class="text-left" style="color: #475569;">${item.target.supplier || '-'}</td>
                 </tr>
               `).join('')}
-              ${aggregatedData.filter(d => d.actualOrderQty > 0).length === 0 ? `
+              ${rowsToPrint.length === 0 ? `
                 <tr>
                   <td colspan="10" class="text-center" style="padding: 16px; color: #94a3b8;">
                     ไม่มีรายการที่ต้องสั่งซื้อ (สต็อกปัจจุบันเพียงพอทุกรายการ)
@@ -604,7 +614,7 @@ export default function ProcurementOrderPanel({
             <tfoot>
               <tr style="background-color: #f1f5f9; font-weight: bold;">
                 <td colspan="5" class="text-right">
-                  รวมทั้งสิ้น (${aggregatedData.filter(d => d.actualOrderQty > 0).length} รายการ):
+                  รวมทั้งสิ้น (${rowsToPrint.length} รายการ):
                 </td>
                 <td class="text-center font-bold" style="color: #4338ca;">
                   ${kpis.totalUnitsToOrder.toLocaleString()}
@@ -655,12 +665,7 @@ export default function ProcurementOrderPanel({
     setTimeout(() => {
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 2000);
-    }, 200);
+    }, 250);
   };
 
   return (
