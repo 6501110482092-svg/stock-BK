@@ -39,6 +39,40 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems, pro
     return Array.from(new Set(stockItems.map(item => item.name))).filter(Boolean);
   }, [stockItems]);
 
+  // ค้นหาล็อตเดิมที่มีอยู่ในคลังเฉพาะของ Test นี้เท่านั้น (ไม่นำล็อตของ Test อื่นมาแนะนำ และไม่แสดงล็อตที่ถูกลบออกจากคลังแล้ว)
+  const existingLotsForCurrentTest = useMemo(() => {
+    if (!name || !name.trim()) return [];
+    const normalizedName = name.trim().toLowerCase();
+
+    // กรองเฉพาะไอเทมในคลังปัจจุบันที่มีชื่อตรงกับ Test นี้เท่านั้น และมีค่า lot
+    const matched = stockItems.filter(item => 
+      item.name && 
+      item.name.trim().toLowerCase() === normalizedName && 
+      Boolean(item.lot && item.lot.trim())
+    );
+
+    // รวบรวมรายการล็อตที่ไม่ซ้ำกัน พร้อมดึงวันหมดอายุเดิม
+    const map = new Map<string, { lot: string; expiryDate: string; receiveDate?: string; unit?: string }>();
+    matched.forEach(item => {
+      const lotStr = item.lot.trim();
+      if (!map.has(lotStr)) {
+        map.set(lotStr, {
+          lot: lotStr,
+          expiryDate: item.expiryDate || '',
+          receiveDate: item.receiveDate,
+          unit: item.unit
+        });
+      } else {
+        const existing = map.get(lotStr)!;
+        if (!existing.expiryDate && item.expiryDate) {
+          existing.expiryDate = item.expiryDate;
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [name, stockItems]);
+
   // ค้นหา ProcurementTarget ที่ถูกเลือก หรือที่ชื่อตรงกัน
   const selectedProcurementTarget = useMemo(() => {
     if (selectedTargetId) {
@@ -181,6 +215,18 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems, pro
       setHasAutoFilled(false);
     }
   }, [name, stockItems, sampleGroups, availableUnits]);
+
+  // ฟังก์ชันเลือกล็อตเดิมของ Test นี้ โดยดึง LOT No. และวันหมดอายุเดิมมาใส่ให้อัตโนมัติ
+  const handleSelectExistingLot = (selectedLotNo: string) => {
+    setLot(selectedLotNo);
+    if (!selectedLotNo) return;
+    const found = existingLotsForCurrentTest.find(
+      l => l.lot.trim().toLowerCase() === selectedLotNo.trim().toLowerCase()
+    );
+    if (found && found.expiryDate) {
+      setExpiryDate(found.expiryDate);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -468,17 +514,110 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems, pro
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              หมายเลขล็อต (LOT No.) <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="เช่น LOT2026B1, AA9876"
-              value={lot}
-              onChange={(e) => setLot(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-800 dark:text-slate-100 font-mono focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-all shadow-sm"
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                หมายเลขล็อต (LOT No.) <span className="text-rose-500">*</span>
+              </label>
+              {existingLotsForCurrentTest.length > 0 && (
+                <span className="text-[10.5px] text-teal-700 dark:text-teal-300 font-semibold bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800 flex items-center gap-1">
+                  📦 พบล็อตเดิม {existingLotsForCurrentTest.length} ล็อต
+                </span>
+              )}
+            </div>
+
+            {/* เมนูดรอปดาวน์เลือกล็อตเดิม (แนะนำเฉพาะ Test นี้เท่านั้น ไม่นำ Test อื่นมาปะปน) */}
+            {existingLotsForCurrentTest.length > 0 && (
+              <div className="mb-2">
+                <select
+                  value={existingLotsForCurrentTest.some(l => l.lot.trim().toLowerCase() === lot.trim().toLowerCase()) ? lot : ''}
+                  onChange={(e) => handleSelectExistingLot(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-medium rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50/70 dark:bg-slate-800 text-teal-950 dark:text-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30 cursor-pointer shadow-xs"
+                >
+                  <option value="">-- หรือคลิกเลือกล็อตเดิมของ "{name}" ({existingLotsForCurrentTest.length} ล็อต) --</option>
+                  {existingLotsForCurrentTest.map((item) => (
+                    <option key={item.lot} value={item.lot}>
+                      📦 ล็อต: {item.lot} {item.expiryDate ? `➜ หมดอายุเดิม: ${item.expiryDate}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="relative">
+              <input
+                type="text"
+                required
+                list="test-specific-lots"
+                placeholder={existingLotsForCurrentTest.length > 0 ? "พิมพ์กำหนดใหม่ หรือเลือกล็อตเดิมด้านบน..." : "เช่น LOT2026B1, AA9876"}
+                value={lot}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLot(val);
+                  // หากค่าที่พิมพ์หรือเลือกตรงกับล็อตเดิมของ Test นี้ ให้ดึงวันหมดอายุเดิมมาใส่อัตโนมัติ
+                  const matchedLot = existingLotsForCurrentTest.find(
+                    l => l.lot.trim().toLowerCase() === val.trim().toLowerCase()
+                  );
+                  if (matchedLot && matchedLot.expiryDate) {
+                    setExpiryDate(matchedLot.expiryDate);
+                  }
+                }}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-800 dark:text-slate-100 font-mono focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-all shadow-sm"
+              />
+
+              <datalist id="test-specific-lots">
+                {existingLotsForCurrentTest.map((item) => (
+                  <option key={item.lot} value={item.lot}>
+                    {item.expiryDate ? `หมดอายุ: ${item.expiryDate}` : ''}
+                  </option>
+                ))}
+              </datalist>
+            </div>
+
+            {/* Quick chips แนะนำล็อตเดิมของ Test นี้ */}
+            {existingLotsForCurrentTest.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mr-0.5">
+                  ล็อตเดิมที่มี:
+                </span>
+                {existingLotsForCurrentTest.map((item) => {
+                  const isSelected = lot.trim().toLowerCase() === item.lot.trim().toLowerCase();
+                  return (
+                    <button
+                      key={item.lot}
+                      type="button"
+                      onClick={() => handleSelectExistingLot(item.lot)}
+                      className={`text-[11px] font-mono px-2 py-0.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-xs font-bold'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400 hover:text-teal-600'
+                      }`}
+                      title={`คลิกเลือกล็อต ${item.lot} (ดึงวันหมดอายุ ${item.expiryDate || '-'})`}
+                    >
+                      {isSelected && <Check className="w-3 h-3" />}
+                      {item.lot}
+                      {item.expiryDate && (
+                        <span className={`text-[9.5px] font-sans px-1 rounded ${
+                          isSelected ? 'bg-teal-700 text-teal-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                        }`}>
+                          {item.expiryDate}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ข้อความช่วยเหลือ */}
+            {!name.trim() ? (
+              <span className="text-[10.5px] text-slate-400 block mt-1.5">
+                💡 ระบุชื่อ Test ด้านบนก่อน ระบบจะดึงเฉพาะล็อตเดิมของ Test นั้นมาแนะนำ
+              </span>
+            ) : existingLotsForCurrentTest.length === 0 ? (
+              <span className="text-[10.5px] text-slate-400 block mt-1.5">
+                💡 ยังไม่มีล็อตเดิมของ "{name}" ในคลัง (กำหนดเป็นล็อตใหม่ได้เลย)
+              </span>
+            ) : null}
           </div>
 
           <div>
@@ -496,10 +635,17 @@ export default function AddStockPanel({ onAddItem, sampleGroups, stockItems, pro
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-rose-400" />
-              วันหมดอายุสารเคมี (Expiry Date) <span className="text-rose-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-rose-400" />
+                วันหมดอายุสารเคมี (Expiry Date) <span className="text-rose-500">*</span>
+              </label>
+              {existingLotsForCurrentTest.some(l => l.lot.trim().toLowerCase() === lot.trim().toLowerCase() && l.expiryDate === expiryDate && expiryDate !== '') && (
+                <span className="text-[10.5px] text-teal-700 dark:text-teal-300 font-semibold bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800 flex items-center gap-1">
+                  ✓ ดึงจากล็อตเดิมแล้ว
+                </span>
+              )}
+            </div>
             <input
               type="date"
               required
